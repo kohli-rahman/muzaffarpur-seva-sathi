@@ -45,12 +45,12 @@ const ComplaintForm = () => {
         user_phone: profile?.phone || '',
         complaint_type: formData.complaintType,
         description: formData.description,
-        location: formData.location
+        location: formData.location || null
       };
 
       const { data, error } = await supabase
         .from('complaints')
-        .insert([complaintData])
+        .insert(complaintData)
         .select()
         .single();
 
