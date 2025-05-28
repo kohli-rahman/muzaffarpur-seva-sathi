@@ -1,10 +1,13 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth } from '@/components/auth/AuthContext';
+import ComplaintForm from '@/components/complaints/ComplaintForm';
+import ComplaintTracker from '@/components/complaints/ComplaintTracker';
 import { 
   Building2, 
   CreditCard, 
@@ -20,12 +23,36 @@ import {
   Users,
   BarChart3,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  LogOut,
+  User
 } from 'lucide-react';
 
 const Index = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedProperty, setSelectedProperty] = useState('');
+  const { user, signOut, isLoading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      navigate('/auth');
+    }
+  }, [user, isLoading, navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   const taxData = [
     { id: 'PT001', type: 'Property Tax', amount: 15000, status: 'paid', dueDate: '2024-03-31', property: 'House No. 123, Mithanpura' },
@@ -77,12 +104,21 @@ const Index = () => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <User className="w-4 h-4" />
+                <span>Welcome, {user.email}</span>
+              </div>
               <Button variant="outline" size="sm" className="hidden md:flex">
                 <Bell className="w-4 h-4 mr-2" />
                 Notifications
               </Button>
-              <Button className="bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700">
-                Login
+              <Button 
+                onClick={signOut}
+                variant="outline" 
+                className="bg-red-50 border-red-200 text-red-600 hover:bg-red-100"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
               </Button>
             </div>
           </div>
@@ -299,52 +335,10 @@ const Index = () => {
 
           {/* Complaints */}
           <TabsContent value="complaints" className="space-y-6">
-            <Card className="shadow-lg border-orange-100">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <AlertCircle className="w-5 h-5 mr-2 text-orange-600" />
-                  Public Complaints & Grievances
-                </CardTitle>
-                <CardDescription>Submit and track your complaints</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Complaint Type</label>
-                    <select className="w-full px-3 py-2 border border-orange-200 rounded-md focus:ring-orange-500 focus:border-orange-500">
-                      <option>Street Light Issue</option>
-                      <option>Water Supply Problem</option>
-                      <option>Garbage Collection</option>
-                      <option>Road Condition</option>
-                      <option>Drainage Issue</option>
-                      <option>Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Location/Ward</label>
-                    <Input placeholder="Enter location or ward number" className="border-orange-200 focus:border-orange-500" />
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Complaint Description</label>
-                  <textarea 
-                    rows={4}
-                    placeholder="Describe your complaint in detail..."
-                    className="w-full px-3 py-2 border border-orange-200 rounded-md focus:ring-orange-500 focus:border-orange-500"
-                  />
-                </div>
-                
-                <div className="flex space-x-4">
-                  <Button className="bg-orange-600 hover:bg-orange-700">
-                    Submit Complaint
-                  </Button>
-                  <Button variant="outline" className="border-orange-200 text-orange-600 hover:bg-orange-50">
-                    Track Existing Complaint
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <ComplaintForm />
+              <ComplaintTracker />
+            </div>
           </TabsContent>
         </Tabs>
 
