@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +32,15 @@ import {
   User,
   Settings
 } from 'lucide-react';
+
+const municipalServices = [
+  { name: 'Trade License', icon: FileText },
+  { name: 'Birth Certificate', icon: User },
+  { name: 'Death Certificate', icon: FileText },
+  { name: 'Property Registration', icon: Building2 },
+  { name: 'Water Connection', icon: Settings },
+  { name: 'Building Permit', icon: Building2 }
+];
 
 const Index = () => {
   const [searchTerm, setSearchTerm] = useState('');

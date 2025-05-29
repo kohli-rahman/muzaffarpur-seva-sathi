@@ -41,7 +41,7 @@ const ComplaintForm = () => {
       // Create a unique complaint ID manually instead of relying on trigger
       const now = new Date();
       const year = now.getFullYear().toString();
-      const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24)).toString().padStart(3, '0');
+      const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24)).toString().padStart(3, '0');
       const random = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
       const complaintId = 'MZF' + year + dayOfYear + random;
 
