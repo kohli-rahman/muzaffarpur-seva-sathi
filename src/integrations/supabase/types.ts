@@ -56,6 +56,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          aadhar_number: string | null
           address: string | null
           created_at: string
           full_name: string | null
@@ -64,6 +65,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          aadhar_number?: string | null
           address?: string | null
           created_at?: string
           full_name?: string | null
@@ -72,12 +74,55 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          aadhar_number?: string | null
           address?: string | null
           created_at?: string
           full_name?: string | null
           id?: string
           phone?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      tax_records: {
+        Row: {
+          amount: number
+          created_at: string
+          due_date: string
+          financial_year: string
+          id: string
+          paid_date: string | null
+          property_id: string
+          status: string
+          tax_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          due_date: string
+          financial_year: string
+          id?: string
+          paid_date?: string | null
+          property_id: string
+          status?: string
+          tax_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          due_date?: string
+          financial_year?: string
+          id?: string
+          paid_date?: string | null
+          property_id?: string
+          status?: string
+          tax_type?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

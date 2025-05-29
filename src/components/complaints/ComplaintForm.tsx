@@ -38,18 +38,15 @@ const ComplaintForm = () => {
         .eq('id', user.id)
         .single();
 
-      // Create a unique complaint ID manually instead of relying on trigger
-      const now = new Date();
-      const year = now.getFullYear().toString();
-      const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24)).toString().padStart(3, '0');
-      const random = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
-      const complaintId = 'MZF' + year + dayOfYear + random;
+      // Use the database function to generate complaint ID
+      const { data: complaintIdData } = await supabase
+        .rpc('generate_complaint_id');
 
-      // Insert complaint data with manually generated complaint_id
+      // Insert complaint data
       const { data, error } = await supabase
         .from('complaints')
         .insert({
-          complaint_id: complaintId, // Manual ID to avoid trigger issues
+          complaint_id: complaintIdData,
           user_id: user.id,
           user_name: profile?.full_name || 'Unknown User',
           user_email: user.email || '',
@@ -57,7 +54,7 @@ const ComplaintForm = () => {
           complaint_type: formData.complaintType,
           description: formData.description,
           location: formData.location || null
-        } as any)
+        })
         .select()
         .single();
 
