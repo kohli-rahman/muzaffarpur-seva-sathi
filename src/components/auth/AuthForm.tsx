@@ -18,6 +18,7 @@ const AuthForm = () => {
     password: '',
     fullName: '',
     phone: '',
+    aadharNumber: '',
     confirmPassword: ''
   });
   const { toast } = useToast();
@@ -57,7 +58,8 @@ const AuthForm = () => {
         options: {
           data: {
             full_name: formData.fullName,
-            phone: formData.phone
+            phone: formData.phone,
+            aadhar_number: formData.aadharNumber
           }
         }
       });
@@ -299,6 +301,20 @@ const AuthForm = () => {
                         value={formData.phone}
                         onChange={handleInputChange}
                         required
+                        className="h-11 border-gray-200 focus:border-green-500 focus:ring-green-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Aadhar Number</label>
+                      <Input
+                        type="text"
+                        name="aadharNumber"
+                        placeholder="Enter your Aadhar number"
+                        value={formData.aadharNumber}
+                        onChange={handleInputChange}
+                        required
+                        maxLength={12}
+                        pattern="[0-9]{12}"
                         className="h-11 border-gray-200 focus:border-green-500 focus:ring-green-500"
                       />
                     </div>

@@ -8,6 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/components/auth/AuthContext';
 import ComplaintForm from '@/components/complaints/ComplaintForm';
 import ComplaintTracker from '@/components/complaints/ComplaintTracker';
+import UserTaxRecords from '@/components/tax/UserTaxRecords';
+import AdminTaxManagement from '@/components/tax/AdminTaxManagement';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Building2, 
   CreditCard, 
@@ -25,19 +28,42 @@ import {
   AlertCircle,
   CheckCircle,
   LogOut,
-  User
+  User,
+  Settings
 } from 'lucide-react';
 
 const Index = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const { user, signOut, isLoading } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!isLoading && !user) {
       navigate('/auth');
+    } else if (user) {
+      checkIfAdmin();
     }
   }, [user, isLoading, navigate]);
+
+  const checkIfAdmin = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'admin')
+        .single();
+      
+      if (!error && data) {
+        setIsAdmin(true);
+      }
+    } catch (error) {
+      console.error('Error checking admin role:', error);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -53,40 +79,6 @@ const Index = () => {
   if (!user) {
     return null;
   }
-
-  const taxData = [
-    { id: 'PT001', type: 'Property Tax', amount: 15000, status: 'paid', dueDate: '2024-03-31', property: 'House No. 123, Mithanpura' },
-    { id: 'TL001', type: 'Trade License', amount: 5000, status: 'pending', dueDate: '2024-02-15', property: 'Shop No. 45, Saraiyaganj' },
-    { id: 'AT001', type: 'Advertisement Tax', amount: 8000, status: 'overdue', dueDate: '2024-01-30', property: 'Billboard, Station Road' },
-    { id: 'MT001', type: 'Mobile Tower Fee', amount: 25000, status: 'paid', dueDate: '2024-04-15', property: 'Tower Site, Brahmpura' }
-  ];
-
-  const municipalServices = [
-    { name: 'Birth Certificate', icon: FileText, status: 'active' },
-    { name: 'Death Certificate', icon: FileText, status: 'active' },
-    { name: 'Water Connection', icon: Building2, status: 'active' },
-    { name: 'Building Permission', icon: Building2, status: 'active' },
-    { name: 'Street Light Complaint', icon: AlertCircle, status: 'active' },
-    { name: 'Garbage Collection', icon: Users, status: 'active' }
-  ];
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'paid': return 'bg-green-100 text-green-800 border-green-200';
-      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'overdue': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'paid': return <CheckCircle className="w-4 h-4" />;
-      case 'pending': return <Calendar className="w-4 h-4" />;
-      case 'overdue': return <AlertCircle className="w-4 h-4" />;
-      default: return null;
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -107,6 +99,11 @@ const Index = () => {
               <div className="flex items-center space-x-2 text-sm text-gray-600">
                 <User className="w-4 h-4" />
                 <span>Welcome, {user.email}</span>
+                {isAdmin && (
+                  <Badge className="bg-purple-100 text-purple-800 border-purple-200">
+                    Admin
+                  </Badge>
+                )}
               </div>
               <Button variant="outline" size="sm" className="hidden md:flex">
                 <Bell className="w-4 h-4 mr-2" />
@@ -200,7 +197,7 @@ const Index = () => {
         <Tabs defaultValue="dashboard" className="space-y-6">
           <TabsList className="grid grid-cols-2 lg:grid-cols-4 h-12 bg-white shadow-md border border-blue-100">
             <TabsTrigger value="dashboard" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              Tax Dashboard
+              {isAdmin ? 'Admin Dashboard' : 'Tax Dashboard'}
             </TabsTrigger>
             <TabsTrigger value="payments" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
               Quick Payment
@@ -215,41 +212,11 @@ const Index = () => {
 
           {/* Tax Dashboard */}
           <TabsContent value="dashboard" className="space-y-6">
-            <Card className="shadow-lg border-blue-100">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Receipt className="w-5 h-5 mr-2 text-blue-600" />
-                  Tax Records Overview
-                </CardTitle>
-                <CardDescription>Monitor all municipal tax payments and dues</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {taxData.map((tax) => (
-                    <div key={tax.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <h3 className="font-semibold text-gray-900">{tax.type}</h3>
-                          <Badge className={`${getStatusColor(tax.status)} border`}>
-                            {getStatusIcon(tax.status)}
-                            <span className="ml-1 capitalize">{tax.status}</span>
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-1">ID: {tax.id}</p>
-                        <p className="text-sm text-gray-600">{tax.property}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-gray-900">₹{tax.amount.toLocaleString()}</p>
-                        <p className="text-sm text-gray-500">Due: {tax.dueDate}</p>
-                      </div>
-                      <Button className="ml-4 bg-blue-600 hover:bg-blue-700">
-                        {tax.status === 'paid' ? 'View Receipt' : 'Pay Now'}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            {isAdmin ? (
+              <AdminTaxManagement />
+            ) : (
+              <UserTaxRecords />
+            )}
           </TabsContent>
 
           {/* Quick Payment */}
