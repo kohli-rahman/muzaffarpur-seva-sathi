@@ -63,61 +63,42 @@ const AdminTaxManagement = () => {
 
       if (taxError) throw taxError;
 
-      // Fetch all user profiles for admin to select from
-      // We'll get profiles and also try to get users from auth metadata
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, full_name, phone, aadhar_number')
-        .order('full_name', { ascending: true });
-
-      if (profileError) {
-        console.error('Error fetching profiles:', profileError);
-      }
-
-      // Also try to get additional user information from user_roles table
-      // This will help us find users who might not have complete profiles
+      // Fetch all user IDs from user_roles table to get all registered users
       const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
-        .select('user_id')
-        .distinct();
+        .select('user_id');
 
       if (roleError) {
         console.error('Error fetching user roles:', roleError);
       }
 
-      // Combine profile data with any users who might not have profiles yet
-      const profileMap = new Map();
-      
-      // Add all users with profiles
-      if (profileData) {
-        profileData.forEach(profile => {
-          profileMap.set(profile.id, {
-            id: profile.id,
-            full_name: profile.full_name || 'No Name',
-            phone: profile.phone || '',
-            aadhar_number: profile.aadhar_number || 'No Aadhar',
-            email: ''
-          });
-        });
+      // Extract unique user IDs
+      const userIds = [...new Set(roleData?.map(role => role.user_id) || [])];
+      console.log('Found user IDs:', userIds);
+
+      // Fetch profiles for all users
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, full_name, phone, aadhar_number')
+        .in('id', userIds);
+
+      if (profileError) {
+        console.error('Error fetching profiles:', profileError);
       }
 
-      // Add any users from roles who don't have profiles
-      if (roleData) {
-        roleData.forEach(role => {
-          if (!profileMap.has(role.user_id)) {
-            profileMap.set(role.user_id, {
-              id: role.user_id,
-              full_name: 'User Profile Incomplete',
-              phone: '',
-              aadhar_number: 'No Aadhar',
-              email: ''
-            });
-          }
-        });
-      }
+      // Create a map of users with their profile data
+      const allUsers: UserProfile[] = userIds.map(userId => {
+        const profile = profileData?.find(p => p.id === userId);
+        return {
+          id: userId,
+          full_name: profile?.full_name || 'Profile Incomplete',
+          phone: profile?.phone || '',
+          aadhar_number: profile?.aadhar_number || 'No Aadhar',
+          email: ''
+        };
+      });
 
-      const allUsers = Array.from(profileMap.values());
-      console.log('Fetched users for admin:', allUsers);
+      console.log('All users for admin:', allUsers);
 
       setTaxRecords(taxData || []);
       setUsers(allUsers);
