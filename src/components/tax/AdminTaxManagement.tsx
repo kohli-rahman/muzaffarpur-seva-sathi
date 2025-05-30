@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -55,7 +54,7 @@ const AdminTaxManagement = () => {
 
   const fetchData = async () => {
     try {
-      // Fetch all tax records
+      // Fetch all tax records for admin view
       const { data: taxData, error: taxError } = await supabase
         .from('tax_records')
         .select('*')
@@ -63,10 +62,11 @@ const AdminTaxManagement = () => {
 
       if (taxError) throw taxError;
 
-      // Fetch all user profiles
+      // Fetch all user profiles for admin to select from
       const { data: userData, error: userError } = await supabase
         .from('profiles')
-        .select('id, full_name, phone, aadhar_number');
+        .select('id, full_name, phone, aadhar_number')
+        .order('full_name', { ascending: true });
 
       if (userError) throw userError;
 
@@ -74,6 +74,11 @@ const AdminTaxManagement = () => {
       setUsers(userData || []);
     } catch (error) {
       console.error('Error fetching data:', error);
+      toast({
+        title: "Error fetching data",
+        description: "Failed to load tax records and user data",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -229,7 +234,7 @@ const AdminTaxManagement = () => {
               <Receipt className="w-5 h-5 mr-2 text-blue-600" />
               Tax Records Management
             </CardTitle>
-            <CardDescription>Create, edit, and manage municipal tax records</CardDescription>
+            <CardDescription>Create, edit, and manage municipal tax records for all citizens</CardDescription>
           </div>
           <Button 
             onClick={() => {
@@ -283,9 +288,9 @@ const AdminTaxManagement = () => {
                         className="w-full px-3 py-2 border border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="">Select a user</option>
-                        {users.map((user) => (
-                          <option key={user.id} value={user.id}>
-                            {user.full_name} - {user.aadhar_number}
+                        {users.map((userProfile) => (
+                          <option key={userProfile.id} value={userProfile.id}>
+                            {userProfile.full_name || 'No Name'} - {userProfile.aadhar_number || 'No Aadhar'}
                           </option>
                         ))}
                       </select>
