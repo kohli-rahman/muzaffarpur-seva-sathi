@@ -26,6 +26,7 @@ interface UserProfile {
   full_name: string;
   phone: string;
   aadhar_number: string;
+  email?: string;
 }
 
 const AdminTaxManagement = () => {
@@ -63,15 +64,63 @@ const AdminTaxManagement = () => {
       if (taxError) throw taxError;
 
       // Fetch all user profiles for admin to select from
-      const { data: userData, error: userError } = await supabase
+      // We'll get profiles and also try to get users from auth metadata
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('id, full_name, phone, aadhar_number')
         .order('full_name', { ascending: true });
 
-      if (userError) throw userError;
+      if (profileError) {
+        console.error('Error fetching profiles:', profileError);
+      }
+
+      // Also try to get additional user information from user_roles table
+      // This will help us find users who might not have complete profiles
+      const { data: roleData, error: roleError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .distinct();
+
+      if (roleError) {
+        console.error('Error fetching user roles:', roleError);
+      }
+
+      // Combine profile data with any users who might not have profiles yet
+      const profileMap = new Map();
+      
+      // Add all users with profiles
+      if (profileData) {
+        profileData.forEach(profile => {
+          profileMap.set(profile.id, {
+            id: profile.id,
+            full_name: profile.full_name || 'No Name',
+            phone: profile.phone || '',
+            aadhar_number: profile.aadhar_number || 'No Aadhar',
+            email: ''
+          });
+        });
+      }
+
+      // Add any users from roles who don't have profiles
+      if (roleData) {
+        roleData.forEach(role => {
+          if (!profileMap.has(role.user_id)) {
+            profileMap.set(role.user_id, {
+              id: role.user_id,
+              full_name: 'User Profile Incomplete',
+              phone: '',
+              aadhar_number: 'No Aadhar',
+              email: ''
+            });
+          }
+        });
+      }
+
+      const allUsers = Array.from(profileMap.values());
+      console.log('Fetched users for admin:', allUsers);
 
       setTaxRecords(taxData || []);
-      setUsers(userData || []);
+      setUsers(allUsers);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -274,6 +323,10 @@ const AdminTaxManagement = () => {
             <Card className="mb-6 border-green-200">
               <CardHeader>
                 <CardTitle>{editingRecord ? 'Edit Tax Record' : 'Create New Tax Record'}</CardTitle>
+                <CardDescription>
+                  Available users: {users.length} | 
+                  {users.length === 0 && ' No users found - please ensure users have registered accounts.'}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -287,13 +340,18 @@ const AdminTaxManagement = () => {
                         required
                         className="w-full px-3 py-2 border border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
                       >
-                        <option value="">Select a user</option>
+                        <option value="">Select a user ({users.length} available)</option>
                         {users.map((userProfile) => (
                           <option key={userProfile.id} value={userProfile.id}>
                             {userProfile.full_name || 'No Name'} - {userProfile.aadhar_number || 'No Aadhar'}
                           </option>
                         ))}
                       </select>
+                      {users.length === 0 && (
+                        <p className="text-sm text-red-600 mt-1">
+                          No users available. Users need to sign up first.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Property ID</label>
