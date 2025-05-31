@@ -55,6 +55,8 @@ const AdminTaxManagement = () => {
 
   const fetchData = async () => {
     try {
+      console.log('Fetching tax records and users...');
+      
       // Fetch all tax records for admin view
       const { data: taxData, error: taxError } = await supabase
         .from('tax_records')
@@ -63,42 +65,59 @@ const AdminTaxManagement = () => {
 
       if (taxError) throw taxError;
 
-      // Fetch all user IDs from user_roles table to get all registered users
-      const { data: roleData, error: roleError } = await supabase
-        .from('user_roles')
-        .select('user_id');
-
-      if (roleError) {
-        console.error('Error fetching user roles:', roleError);
-      }
-
-      // Extract unique user IDs
-      const userIds = [...new Set(roleData?.map(role => role.user_id) || [])];
-      console.log('Found user IDs:', userIds);
-
-      // Fetch profiles for all users
+      // Fetch all registered users from profiles table
+      // We'll get all profiles that have complete information
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('id, full_name, phone, aadhar_number')
-        .in('id', userIds);
+        .not('aadhar_number', 'is', null)
+        .not('full_name', 'is', null)
+        .order('aadhar_number', { ascending: true });
 
       if (profileError) {
         console.error('Error fetching profiles:', profileError);
+        toast({
+          title: "Error fetching user profiles",
+          description: "Failed to load user data",
+          variant: "destructive"
+        });
       }
 
-      // Create a map of users with their profile data
-      const allUsers: UserProfile[] = userIds.map(userId => {
-        const profile = profileData?.find(p => p.id === userId);
-        return {
-          id: userId,
-          full_name: profile?.full_name || 'Profile Incomplete',
-          phone: profile?.phone || '',
-          aadhar_number: profile?.aadhar_number || 'No Aadhar',
-          email: ''
-        };
-      });
+      // Also fetch users who might not have complete profiles yet
+      const { data: allProfileData, error: allProfileError } = await supabase
+        .from('profiles')
+        .select('id, full_name, phone, aadhar_number');
 
-      console.log('All users for admin:', allUsers);
+      if (allProfileError) {
+        console.error('Error fetching all profiles:', allProfileError);
+      }
+
+      // Create user list prioritizing those with Aadhar numbers
+      const usersWithAadhar = profileData || [];
+      const usersWithoutAadhar = (allProfileData || []).filter(profile => 
+        !profile.aadhar_number && !usersWithAadhar.find(u => u.id === profile.id)
+      );
+
+      const allUsers: UserProfile[] = [
+        ...usersWithAadhar.map(profile => ({
+          id: profile.id,
+          full_name: profile.full_name || 'No Name',
+          phone: profile.phone || '',
+          aadhar_number: profile.aadhar_number || 'No Aadhar',
+          email: ''
+        })),
+        ...usersWithoutAadhar.map(profile => ({
+          id: profile.id,
+          full_name: profile.full_name || 'Incomplete Profile',
+          phone: profile.phone || '',
+          aadhar_number: 'No Aadhar Provided',
+          email: ''
+        }))
+      ];
+
+      console.log('Found users:', allUsers);
+      console.log('Users with Aadhar:', usersWithAadhar.length);
+      console.log('Users without Aadhar:', usersWithoutAadhar.length);
 
       setTaxRecords(taxData || []);
       setUsers(allUsers);
@@ -305,15 +324,16 @@ const AdminTaxManagement = () => {
               <CardHeader>
                 <CardTitle>{editingRecord ? 'Edit Tax Record' : 'Create New Tax Record'}</CardTitle>
                 <CardDescription>
-                  Available users: {users.length} | 
-                  {users.length === 0 && ' No users found - please ensure users have registered accounts.'}
+                  Registered users: {users.length} | 
+                  With Aadhar: {users.filter(u => u.aadhar_number && u.aadhar_number !== 'No Aadhar' && u.aadhar_number !== 'No Aadhar Provided').length} |
+                  {users.length === 0 && ' No users found - users need to complete their registration with Aadhar number.'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Select User</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Select User (by Aadhar & Name)</label>
                       <select
                         name="user_id"
                         value={formData.user_id}
@@ -324,13 +344,18 @@ const AdminTaxManagement = () => {
                         <option value="">Select a user ({users.length} available)</option>
                         {users.map((userProfile) => (
                           <option key={userProfile.id} value={userProfile.id}>
-                            {userProfile.full_name || 'No Name'} - {userProfile.aadhar_number || 'No Aadhar'}
+                            {userProfile.aadhar_number} - {userProfile.full_name}
                           </option>
                         ))}
                       </select>
                       {users.length === 0 && (
                         <p className="text-sm text-red-600 mt-1">
-                          No users available. Users need to sign up first.
+                          No users available. Users need to sign up and provide Aadhar number.
+                        </p>
+                      )}
+                      {users.filter(u => u.aadhar_number === 'No Aadhar' || u.aadhar_number === 'No Aadhar Provided').length > 0 && (
+                        <p className="text-sm text-amber-600 mt-1">
+                          {users.filter(u => u.aadhar_number === 'No Aadhar' || u.aadhar_number === 'No Aadhar Provided').length} users haven't provided Aadhar numbers yet.
                         </p>
                       )}
                     </div>

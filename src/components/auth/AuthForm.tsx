@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -50,8 +49,25 @@ const AuthForm = () => {
       return;
     }
 
+    // Validate Aadhar number format (12 digits)
+    if (formData.aadharNumber.length !== 12 || !/^\d{12}$/.test(formData.aadharNumber)) {
+      toast({
+        title: "Invalid Aadhar Number",
+        description: "Aadhar number must be exactly 12 digits.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
+      console.log('Signing up user with data:', {
+        email: formData.email,
+        full_name: formData.fullName,
+        phone: formData.phone,
+        aadhar_number: formData.aadharNumber
+      });
+
       const { error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -68,9 +84,10 @@ const AuthForm = () => {
 
       toast({
         title: "Account created successfully!",
-        description: "Please check your email for verification link.",
+        description: "Please check your email for verification link. Your Aadhar number has been recorded.",
       });
     } catch (error: any) {
+      console.error('Signup error:', error);
       toast({
         title: "Sign up failed",
         description: error.message,
@@ -269,7 +286,7 @@ const AuthForm = () => {
                 <TabsContent value="signup" className="space-y-4">
                   <form onSubmit={handleSignUp} className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Full Name</label>
+                      <label className="text-sm font-medium text-gray-700">Full Name *</label>
                       <Input
                         type="text"
                         name="fullName"
@@ -281,7 +298,7 @@ const AuthForm = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Email Address</label>
+                      <label className="text-sm font-medium text-gray-700">Email Address *</label>
                       <Input
                         type="email"
                         name="email"
@@ -293,7 +310,7 @@ const AuthForm = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Phone Number</label>
+                      <label className="text-sm font-medium text-gray-700">Phone Number *</label>
                       <Input
                         type="tel"
                         name="phone"
@@ -305,11 +322,11 @@ const AuthForm = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Aadhar Number</label>
+                      <label className="text-sm font-medium text-gray-700">Aadhar Number * (Required for tax records)</label>
                       <Input
                         type="text"
                         name="aadharNumber"
-                        placeholder="Enter your Aadhar number"
+                        placeholder="Enter your 12-digit Aadhar number"
                         value={formData.aadharNumber}
                         onChange={handleInputChange}
                         required
@@ -317,9 +334,12 @@ const AuthForm = () => {
                         pattern="[0-9]{12}"
                         className="h-11 border-gray-200 focus:border-green-500 focus:ring-green-500"
                       />
+                      <p className="text-xs text-gray-500">
+                        Your Aadhar number is required for creating tax records and identifying your account.
+                      </p>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Password</label>
+                      <label className="text-sm font-medium text-gray-700">Password *</label>
                       <div className="relative">
                         <Input
                           type={showPassword ? "text" : "password"}
@@ -343,7 +363,7 @@ const AuthForm = () => {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Confirm Password</label>
+                      <label className="text-sm font-medium text-gray-700">Confirm Password *</label>
                       <Input
                         type="password"
                         name="confirmPassword"
