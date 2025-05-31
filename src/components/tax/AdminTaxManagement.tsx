@@ -26,6 +26,7 @@ interface UserProfile {
   full_name: string;
   phone: string;
   aadhar_number: string;
+  address: string;
   email?: string;
 }
 
@@ -65,59 +66,40 @@ const AdminTaxManagement = () => {
 
       if (taxError) throw taxError;
 
-      // Fetch all registered users from profiles table
-      // We'll get all profiles that have complete information
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, full_name, phone, aadhar_number')
-        .not('aadhar_number', 'is', null)
-        .not('full_name', 'is', null)
-        .order('aadhar_number', { ascending: true });
+      // Fetch ALL registered users by joining user_roles with profiles
+      const { data: userData, error: userError } = await supabase
+        .from('user_roles')
+        .select(`
+          user_id,
+          profiles!inner(
+            id,
+            full_name,
+            phone,
+            aadhar_number,
+            address
+          )
+        `)
+        .order('profiles.aadhar_number', { ascending: true });
 
-      if (profileError) {
-        console.error('Error fetching profiles:', profileError);
-        toast({
-          title: "Error fetching user profiles",
-          description: "Failed to load user data",
-          variant: "destructive"
-        });
+      if (userError) {
+        console.error('Error fetching users:', userError);
+        throw userError;
       }
 
-      // Also fetch users who might not have complete profiles yet
-      const { data: allProfileData, error: allProfileError } = await supabase
-        .from('profiles')
-        .select('id, full_name, phone, aadhar_number');
-
-      if (allProfileError) {
-        console.error('Error fetching all profiles:', allProfileError);
-      }
-
-      // Create user list prioritizing those with Aadhar numbers
-      const usersWithAadhar = profileData || [];
-      const usersWithoutAadhar = (allProfileData || []).filter(profile => 
-        !profile.aadhar_number && !usersWithAadhar.find(u => u.id === profile.id)
-      );
-
-      const allUsers: UserProfile[] = [
-        ...usersWithAadhar.map(profile => ({
-          id: profile.id,
-          full_name: profile.full_name || 'No Name',
-          phone: profile.phone || '',
-          aadhar_number: profile.aadhar_number || 'No Aadhar',
-          email: ''
-        })),
-        ...usersWithoutAadhar.map(profile => ({
-          id: profile.id,
-          full_name: profile.full_name || 'Incomplete Profile',
-          phone: profile.phone || '',
-          aadhar_number: 'No Aadhar Provided',
+      // Transform the data to get all users with complete profiles
+      const allUsers: UserProfile[] = (userData || [])
+        .map(item => ({
+          id: item.user_id,
+          full_name: item.profiles?.full_name || 'No Name',
+          phone: item.profiles?.phone || 'No Phone',
+          aadhar_number: item.profiles?.aadhar_number || 'No Aadhar',
+          address: item.profiles?.address || 'No Address',
           email: ''
         }))
-      ];
+        .filter(user => user.aadhar_number && user.aadhar_number !== 'No Aadhar');
 
-      console.log('Found users:', allUsers);
-      console.log('Users with Aadhar:', usersWithAadhar.length);
-      console.log('Users without Aadhar:', usersWithoutAadhar.length);
+      console.log('Found users:', allUsers.length);
+      console.log('Users data:', allUsers);
 
       setTaxRecords(taxData || []);
       setUsers(allUsers);
@@ -324,16 +306,16 @@ const AdminTaxManagement = () => {
               <CardHeader>
                 <CardTitle>{editingRecord ? 'Edit Tax Record' : 'Create New Tax Record'}</CardTitle>
                 <CardDescription>
-                  Registered users: {users.length} | 
-                  With Aadhar: {users.filter(u => u.aadhar_number && u.aadhar_number !== 'No Aadhar' && u.aadhar_number !== 'No Aadhar Provided').length} |
-                  {users.length === 0 && ' No users found - users need to complete their registration with Aadhar number.'}
+                  Available users: {users.length} registered users found
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Select User (by Aadhar & Name)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select User (Aadhar - Name - Phone)
+                      </label>
                       <select
                         name="user_id"
                         value={formData.user_id}
@@ -344,18 +326,13 @@ const AdminTaxManagement = () => {
                         <option value="">Select a user ({users.length} available)</option>
                         {users.map((userProfile) => (
                           <option key={userProfile.id} value={userProfile.id}>
-                            {userProfile.aadhar_number} - {userProfile.full_name}
+                            {userProfile.aadhar_number} - {userProfile.full_name} - {userProfile.phone}
                           </option>
                         ))}
                       </select>
                       {users.length === 0 && (
                         <p className="text-sm text-red-600 mt-1">
-                          No users available. Users need to sign up and provide Aadhar number.
-                        </p>
-                      )}
-                      {users.filter(u => u.aadhar_number === 'No Aadhar' || u.aadhar_number === 'No Aadhar Provided').length > 0 && (
-                        <p className="text-sm text-amber-600 mt-1">
-                          {users.filter(u => u.aadhar_number === 'No Aadhar' || u.aadhar_number === 'No Aadhar Provided').length} users haven't provided Aadhar numbers yet.
+                          No users available. Users need to complete registration with Aadhar number.
                         </p>
                       )}
                     </div>

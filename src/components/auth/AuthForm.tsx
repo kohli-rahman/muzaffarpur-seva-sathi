@@ -17,6 +17,7 @@ const AuthForm = () => {
     password: '',
     fullName: '',
     phone: '',
+    address: '',
     aadharNumber: '',
     confirmPassword: ''
   });
@@ -59,12 +60,23 @@ const AuthForm = () => {
       return;
     }
 
+    // Validate phone number (10 digits)
+    if (formData.phone.length !== 10 || !/^\d{10}$/.test(formData.phone)) {
+      toast({
+        title: "Invalid Phone Number",
+        description: "Phone number must be exactly 10 digits.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       console.log('Signing up user with data:', {
         email: formData.email,
         full_name: formData.fullName,
         phone: formData.phone,
+        address: formData.address,
         aadhar_number: formData.aadharNumber
       });
 
@@ -75,6 +87,7 @@ const AuthForm = () => {
           data: {
             full_name: formData.fullName,
             phone: formData.phone,
+            address: formData.address,
             aadhar_number: formData.aadharNumber
           }
         }
@@ -84,7 +97,7 @@ const AuthForm = () => {
 
       toast({
         title: "Account created successfully!",
-        description: "Please check your email for verification link. Your Aadhar number has been recorded.",
+        description: "Please check your email for verification link. Your details have been recorded.",
       });
     } catch (error: any) {
       console.error('Signup error:', error);
@@ -314,12 +327,32 @@ const AuthForm = () => {
                       <Input
                         type="tel"
                         name="phone"
-                        placeholder="Enter your phone number"
+                        placeholder="Enter your 10-digit phone number"
                         value={formData.phone}
+                        onChange={handleInputChange}
+                        required
+                        maxLength={10}
+                        pattern="[0-9]{10}"
+                        className="h-11 border-gray-200 focus:border-green-500 focus:ring-green-500"
+                      />
+                      <p className="text-xs text-gray-500">
+                        Enter your 10-digit mobile number (required for contact).
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Address *</label>
+                      <Input
+                        type="text"
+                        name="address"
+                        placeholder="Enter your complete address"
+                        value={formData.address}
                         onChange={handleInputChange}
                         required
                         className="h-11 border-gray-200 focus:border-green-500 focus:ring-green-500"
                       />
+                      <p className="text-xs text-gray-500">
+                        Enter your complete residential address.
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-700">Aadhar Number * (Required for tax records)</label>
