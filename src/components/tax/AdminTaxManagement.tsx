@@ -66,43 +66,38 @@ const AdminTaxManagement = () => {
 
       if (taxError) throw taxError;
 
-      // Fetch ALL registered users by joining user_roles with profiles
-      const { data: userData, error: userError } = await supabase
-        .from('user_roles')
-        .select(`
-          user_id,
-          profiles!inner(
-            id,
-            full_name,
-            phone,
-            aadhar_number,
-            address
-          )
-        `)
-        .order('profiles.aadhar_number', { ascending: true });
+      // Fetch all profiles directly with user_roles to get all registered users
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('aadhar_number', { ascending: true });
 
-      if (userError) {
-        console.error('Error fetching users:', userError);
-        throw userError;
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        throw profilesError;
       }
 
-      // Transform the data to get all users with complete profiles
-      const allUsers: UserProfile[] = (userData || [])
-        .map(item => ({
-          id: item.user_id,
-          full_name: item.profiles?.full_name || 'No Name',
-          phone: item.profiles?.phone || 'No Phone',
-          aadhar_number: item.profiles?.aadhar_number || 'No Aadhar',
-          address: item.profiles?.address || 'No Address',
+      // Filter profiles that have complete information and Aadhar numbers
+      const validUsers: UserProfile[] = (profilesData || [])
+        .filter(profile => 
+          profile.aadhar_number && 
+          profile.aadhar_number.length === 12 &&
+          profile.full_name
+        )
+        .map(profile => ({
+          id: profile.id,
+          full_name: profile.full_name || 'No Name',
+          phone: profile.phone || 'No Phone',
+          aadhar_number: profile.aadhar_number || 'No Aadhar',
+          address: profile.address || 'No Address',
           email: ''
-        }))
-        .filter(user => user.aadhar_number && user.aadhar_number !== 'No Aadhar');
+        }));
 
-      console.log('Found users:', allUsers.length);
-      console.log('Users data:', allUsers);
+      console.log('Found users:', validUsers.length);
+      console.log('Users data:', validUsers);
 
       setTaxRecords(taxData || []);
-      setUsers(allUsers);
+      setUsers(validUsers);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({

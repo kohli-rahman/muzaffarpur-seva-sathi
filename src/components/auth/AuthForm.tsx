@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -80,7 +81,7 @@ const AuthForm = () => {
         aadhar_number: formData.aadharNumber
       });
 
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
@@ -94,6 +95,23 @@ const AuthForm = () => {
       });
 
       if (error) throw error;
+
+      // If signup is successful and user is confirmed, update the profile directly
+      if (data.user && data.user.email_confirmed_at) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: data.user.id,
+            full_name: formData.fullName,
+            phone: formData.phone,
+            address: formData.address,
+            aadhar_number: formData.aadharNumber
+          });
+
+        if (profileError) {
+          console.error('Profile update error:', profileError);
+        }
+      }
 
       toast({
         title: "Account created successfully!",
