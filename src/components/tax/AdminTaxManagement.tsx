@@ -64,26 +64,38 @@ const AdminTaxManagement = () => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (taxError) throw taxError;
+      if (taxError) {
+        console.error('Tax records error:', taxError);
+        throw taxError;
+      }
 
-      // Fetch all profiles directly with user_roles to get all registered users
+      // Fetch all profiles with valid Aadhar numbers (non-null and 12 digits)
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
-        .order('aadhar_number', { ascending: true });
+        .not('aadhar_number', 'is', null)
+        .not('full_name', 'is', null)
+        .order('full_name', { ascending: true });
 
       if (profilesError) {
         console.error('Error fetching profiles:', profilesError);
         throw profilesError;
       }
 
-      // Filter profiles that have complete information and Aadhar numbers
+      console.log('Raw profiles data:', profilesData);
+
+      // Filter and map profiles to ensure they have complete information
       const validUsers: UserProfile[] = (profilesData || [])
-        .filter(profile => 
-          profile.aadhar_number && 
-          profile.aadhar_number.length === 12 &&
-          profile.full_name
-        )
+        .filter(profile => {
+          const hasValidAadhar = profile.aadhar_number && 
+                               profile.aadhar_number.length === 12 &&
+                               /^\d{12}$/.test(profile.aadhar_number);
+          const hasName = profile.full_name && profile.full_name.trim().length > 0;
+          
+          console.log(`Profile ${profile.id}: Aadhar=${profile.aadhar_number}, Name=${profile.full_name}, Valid=${hasValidAadhar && hasName}`);
+          
+          return hasValidAadhar && hasName;
+        })
         .map(profile => ({
           id: profile.id,
           full_name: profile.full_name || 'No Name',
@@ -93,8 +105,8 @@ const AdminTaxManagement = () => {
           email: ''
         }));
 
-      console.log('Found users:', validUsers.length);
-      console.log('Users data:', validUsers);
+      console.log('Valid users found:', validUsers.length);
+      console.log('Valid users data:', validUsers);
 
       setTaxRecords(taxData || []);
       setUsers(validUsers);
@@ -260,7 +272,10 @@ const AdminTaxManagement = () => {
               <Receipt className="w-5 h-5 mr-2 text-blue-600" />
               Tax Records Management
             </CardTitle>
-            <CardDescription>Create, edit, and manage municipal tax records for all citizens</CardDescription>
+            <CardDescription>
+              Create, edit, and manage municipal tax records for all citizens. 
+              Found {users.length} registered users with valid Aadhar numbers.
+            </CardDescription>
           </div>
           <Button 
             onClick={() => {
@@ -295,13 +310,24 @@ const AdminTaxManagement = () => {
             </div>
           </div>
 
+          {/* Debug Info */}
+          {users.length === 0 && (
+            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <h4 className="font-medium text-yellow-800 mb-2">No users found</h4>
+              <p className="text-sm text-yellow-700">
+                Make sure users have completed registration with valid 12-digit Aadhar numbers and full names.
+                Users must sign up through the registration form to appear here.
+              </p>
+            </div>
+          )}
+
           {/* Create/Edit Form */}
           {showCreateForm && (
             <Card className="mb-6 border-green-200">
               <CardHeader>
                 <CardTitle>{editingRecord ? 'Edit Tax Record' : 'Create New Tax Record'}</CardTitle>
                 <CardDescription>
-                  Available users: {users.length} registered users found
+                  Available users: {users.length} registered users with valid Aadhar numbers
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -327,7 +353,7 @@ const AdminTaxManagement = () => {
                       </select>
                       {users.length === 0 && (
                         <p className="text-sm text-red-600 mt-1">
-                          No users available. Users need to complete registration with Aadhar number.
+                          No users available. Users need to complete registration with valid Aadhar numbers.
                         </p>
                       )}
                     </div>
