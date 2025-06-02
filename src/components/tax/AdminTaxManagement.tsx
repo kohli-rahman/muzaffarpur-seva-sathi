@@ -121,7 +121,7 @@ const AdminTaxManagement = () => {
             console.log('Auth users found:', authUsers.users?.length || 0);
             
             authUsers.users?.forEach((authUser) => {
-              const metadata = authUser.raw_user_meta_data || {};
+              const metadata = authUser.user_metadata || {};
               const hasValidName = metadata.full_name && metadata.full_name.trim().length >= 2;
               const hasValidPhone = metadata.phone && metadata.phone.length === 10 && /^\d{10}$/.test(metadata.phone);
               const hasValidAadhar = metadata.aadhar_number && metadata.aadhar_number.length === 12 && /^\d{12}$/.test(metadata.aadhar_number);
