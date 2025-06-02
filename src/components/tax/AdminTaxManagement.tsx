@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -71,73 +72,35 @@ const AdminTaxManagement = () => {
 
       console.log('Tax records fetched:', taxData?.length || 0);
 
-      // First try to fetch from profiles table
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .not('full_name', 'is', null)
-        .not('phone', 'is', null)
-        .not('aadhar_number', 'is', null)
-        .neq('full_name', '')
-        .neq('phone', '')
-        .neq('aadhar_number', '')
-        .order('created_at', { ascending: false });
-
+      // Fetch users from auth.users using admin access
       let validUsers: UserProfile[] = [];
 
-      if (profilesData && profilesData.length > 0) {
-        console.log('Found profiles in profiles table:', profilesData.length);
+      try {
+        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
         
-        profilesData.forEach((profile) => {
-          const hasValidName = profile.full_name && profile.full_name.trim().length >= 2;
-          const hasValidPhone = profile.phone && profile.phone.length === 10 && /^\d{10}$/.test(profile.phone);
-          const hasValidAadhar = profile.aadhar_number && profile.aadhar_number.length === 12 && /^\d{12}$/.test(profile.aadhar_number);
-          const hasValidAddress = profile.address && profile.address.trim().length >= 5;
-
-          if (hasValidName && hasValidPhone && hasValidAadhar && hasValidAddress) {
-            validUsers.push({
-              id: profile.id,
-              full_name: profile.full_name.trim(),
-              phone: profile.phone,
-              aadhar_number: profile.aadhar_number,
-              address: profile.address.trim(),
-              email: ''
-            });
-          }
-        });
-      }
-
-      // If no valid users found in profiles, try to fetch from auth.users metadata
-      if (validUsers.length === 0) {
-        console.log('No valid profiles found, checking auth.users metadata...');
-        
-        try {
-          // Use admin access to get auth users
-          const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+        if (authError) {
+          console.error('Auth users error:', authError);
+        } else {
+          console.log('Auth users found:', authUsers.users?.length || 0);
           
-          if (authError) {
-            console.error('Auth users error:', authError);
-          } else {
-            console.log('Auth users found:', authUsers.users?.length || 0);
+          authUsers.users?.forEach((authUser) => {
+            const metadata = authUser.user_metadata || {};
             
-            authUsers.users?.forEach((authUser) => {
-              const metadata = authUser.user_metadata || {};
-              const hasValidName = metadata.full_name && metadata.full_name.trim().length >= 2;
-              const hasValidPhone = metadata.phone && metadata.phone.length === 10 && /^\d{10}$/.test(metadata.phone);
-              const hasValidAadhar = metadata.aadhar_number && metadata.aadhar_number.length === 12 && /^\d{12}$/.test(metadata.aadhar_number);
-              const hasValidAddress = metadata.address && metadata.address.trim().length >= 5;
+            // Accept users with basic information (User ID is always available)
+            const hasBasicInfo = authUser.id && authUser.email;
+            
+            if (hasBasicInfo) {
+              validUsers.push({
+                id: authUser.id,
+                full_name: metadata.full_name || 'N/A',
+                phone: metadata.phone || 'N/A',
+                aadhar_number: metadata.aadhar_number || 'N/A',
+                address: metadata.address || 'N/A',
+                email: authUser.email || ''
+              });
 
-              if (hasValidName && hasValidPhone && hasValidAadhar && hasValidAddress) {
-                validUsers.push({
-                  id: authUser.id,
-                  full_name: metadata.full_name.trim(),
-                  phone: metadata.phone,
-                  aadhar_number: metadata.aadhar_number,
-                  address: metadata.address.trim(),
-                  email: authUser.email || ''
-                });
-
-                // Also sync this user to profiles table for future use
+              // Sync valid user data to profiles table for future use
+              if (metadata.full_name && metadata.phone && metadata.aadhar_number && metadata.address) {
                 supabase
                   .from('profiles')
                   .upsert({
@@ -149,27 +112,40 @@ const AdminTaxManagement = () => {
                   })
                   .then(() => console.log(`Synced user ${metadata.full_name} to profiles table`));
               }
+            }
+          });
+        }
+      } catch (authFetchError) {
+        console.log('Could not fetch auth users, trying profiles table...');
+        
+        // Fallback to profiles table
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (profilesData && profilesData.length > 0) {
+          console.log('Found profiles in profiles table:', profilesData.length);
+          
+          profilesData.forEach((profile) => {
+            validUsers.push({
+              id: profile.id,
+              full_name: profile.full_name || 'N/A',
+              phone: profile.phone || 'N/A',
+              aadhar_number: profile.aadhar_number || 'N/A',
+              address: profile.address || 'N/A',
+              email: ''
             });
-          }
-        } catch (authFetchError) {
-          console.log('Could not fetch auth users, proceeding with profiles only');
+          });
         }
       }
 
       console.log('=== FINAL RESULTS ===');
-      console.log('Total valid users:', validUsers.length);
-      console.log('Valid users:', validUsers);
+      console.log('Total users found:', validUsers.length);
+      console.log('Users:', validUsers);
 
       setTaxRecords(taxData || []);
       setUsers(validUsers);
-
-      if (validUsers.length === 0) {
-        toast({
-          title: "No Valid Users Found",
-          description: "All users must have valid 10-digit phone numbers and 12-digit Aadhar numbers to create tax records.",
-          variant: "destructive"
-        });
-      }
 
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -307,6 +283,7 @@ const AdminTaxManagement = () => {
     return (
       record.property_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       record.tax_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      record.user_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user?.aadhar_number?.includes(searchTerm)
     );
@@ -335,8 +312,8 @@ const AdminTaxManagement = () => {
               Tax Records Management
             </CardTitle>
             <CardDescription>
-              Create and manage municipal tax records. 
-              Found {users.length} valid users with complete profiles.
+              Create and manage municipal tax records using User IDs. 
+              Found {users.length} users in the system.
             </CardDescription>
           </div>
           <div className="flex flex-col items-end space-y-2">
@@ -361,7 +338,6 @@ const AdminTaxManagement = () => {
                 });
               }}
               className="bg-green-600 hover:bg-green-700"
-              disabled={users.length === 0}
             >
               <PlusCircle className="w-4 h-4 mr-2" />
               Create Tax Record
@@ -374,7 +350,7 @@ const AdminTaxManagement = () => {
             <div className="relative">
               <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
               <Input
-                placeholder="Search by property ID, tax type, user name, or Aadhar number..."
+                placeholder="Search by User ID, property ID, tax type, user name, or Aadhar number..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -386,38 +362,19 @@ const AdminTaxManagement = () => {
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <h4 className="font-medium text-blue-800 mb-2">System Status</h4>
             <div className="text-sm text-blue-700 space-y-1">
-              <p>• Valid users available: {users.length}</p>
+              <p>• Users available: {users.length}</p>
               <p>• Total tax records: {taxRecords.length}</p>
-              <p>• All users have verified phone (10 digits) and Aadhar (12 digits) numbers</p>
-              {users.length > 0 && (
-                <p>• Users loaded from: {users.length > 0 ? 'Auth metadata + Profiles sync' : 'Profiles table only'}</p>
-              )}
+              <p>• Tax records can be created using User ID (UUID format)</p>
             </div>
           </div>
 
-          {users.length === 0 && (
-            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <h4 className="font-medium text-yellow-800 mb-2">No Valid Users</h4>
-              <div className="text-sm text-yellow-700">
-                <p>No users with complete and valid profiles found. Users need:</p>
-                <ul className="list-disc list-inside mt-2 space-y-1">
-                  <li>Full name (at least 2 characters)</li>
-                  <li>Valid 10-digit phone number</li>
-                  <li>Valid 12-digit Aadhar number</li>
-                  <li>Complete address (at least 5 characters)</li>
-                </ul>
-                <p className="mt-2">Ask users to sign up again with all required information.</p>
-              </div>
-            </div>
-          )}
-
           {/* Create/Edit Form */}
-          {showCreateForm && users.length > 0 && (
+          {showCreateForm && (
             <Card className="mb-6 border-green-200">
               <CardHeader>
                 <CardTitle>{editingRecord ? 'Edit Tax Record' : 'Create New Tax Record'}</CardTitle>
                 <CardDescription>
-                  Select from {users.length} verified users
+                  Select from {users.length} available users by User ID
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -434,10 +391,10 @@ const AdminTaxManagement = () => {
                         required
                         className="w-full px-3 py-2 border border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
                       >
-                        <option value="">Select a verified user</option>
+                        <option value="">Select a user</option>
                         {users.map((userProfile) => (
                           <option key={userProfile.id} value={userProfile.id}>
-                            {userProfile.full_name} | {userProfile.phone} | {userProfile.aadhar_number}
+                            {userProfile.full_name} | {userProfile.email} | ID: {userProfile.id.substring(0, 8)}...
                           </option>
                         ))}
                       </select>
@@ -534,12 +491,7 @@ const AdminTaxManagement = () => {
               <div className="text-center py-8">
                 <Receipt className="w-12 h-12 mx-auto text-gray-400 mb-4" />
                 <p className="text-gray-500 text-lg">No tax records found</p>
-                <p className="text-gray-400">
-                  {users.length === 0 
-                    ? "No valid users available to create tax records" 
-                    : "Create your first tax record using the button above"
-                  }
-                </p>
+                <p className="text-gray-400">Create your first tax record using the button above</p>
               </div>
             ) : (
               filteredRecords.map((record) => {
@@ -551,8 +503,9 @@ const AdminTaxManagement = () => {
                         <div className="flex items-center mb-2">
                           <User className="w-4 h-4 mr-2 text-blue-600" />
                           <h3 className="font-semibold text-lg">{userInfo?.full_name || 'Unknown User'}</h3>
-                          <Badge variant="outline" className="ml-2">{userInfo?.aadhar_number}</Badge>
+                          <Badge variant="outline" className="ml-2">ID: {record.user_id.substring(0, 8)}...</Badge>
                         </div>
+                        <p className="text-gray-600">User ID: {record.user_id}</p>
                         <p className="text-gray-600">Property ID: {record.property_id}</p>
                         <p className="text-gray-600">Tax Type: {record.tax_type}</p>
                         <p className="text-gray-600">Financial Year: {record.financial_year}</p>
