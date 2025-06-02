@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,7 +35,6 @@ const AdminTaxManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [taxRecords, setTaxRecords] = useState<TaxRecord[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [allProfiles, setAllProfiles] = useState<any[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingRecord, setEditingRecord] = useState<TaxRecord | null>(null);
@@ -57,10 +57,9 @@ const AdminTaxManagement = () => {
 
   const fetchData = async () => {
     try {
-      console.log('=== STARTING DATA FETCH ===');
-      console.log('Current user:', user);
+      console.log('=== FETCHING ADMIN TAX DATA ===');
       
-      // Fetch all tax records for admin view
+      // Fetch all tax records
       const { data: taxData, error: taxError } = await supabase
         .from('tax_records')
         .select('*')
@@ -73,142 +72,95 @@ const AdminTaxManagement = () => {
 
       console.log('Tax records fetched:', taxData?.length || 0);
 
-      // Fetch all profiles from the database
-      const { data: allProfiles, error: profilesError } = await supabase
+      // Fetch all valid profiles (only those with proper data)
+      const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
+        .not('full_name', 'is', null)
+        .not('phone', 'is', null)
+        .not('aadhar_number', 'is', null)
+        .neq('full_name', '')
+        .neq('phone', '')
+        .neq('aadhar_number', '')
         .order('created_at', { ascending: false });
 
       if (profilesError) {
-        console.error('Error fetching all profiles:', profilesError);
+        console.error('Profiles error:', profilesError);
         throw profilesError;
       }
 
-      console.log('=== PROFILES DEBUG INFO ===');
-      console.log('Total profiles in database:', allProfiles?.length || 0);
-      console.log('Raw profiles data:', allProfiles);
+      console.log('=== PROFILES VALIDATION ===');
+      console.log('Raw profiles fetched:', profilesData?.length || 0);
 
-      setAllProfiles(allProfiles || []);
-
-      // Process profiles to find valid users
+      // Validate and format profiles
       const validUsers: UserProfile[] = [];
       
-      if (allProfiles && allProfiles.length > 0) {
-        allProfiles.forEach((profile, index) => {
-          console.log(`\n--- Processing profile ${index + 1} ---`);
-          console.log('Profile ID:', profile.id);
-          console.log('Full name:', profile.full_name);
-          console.log('Aadhar number:', profile.aadhar_number);
-          console.log('Phone:', profile.phone);
-          console.log('Address:', profile.address);
+      if (profilesData && profilesData.length > 0) {
+        profilesData.forEach((profile, index) => {
+          console.log(`\n--- Validating profile ${index + 1} ---`);
+          console.log('Profile:', {
+            id: profile.id,
+            name: profile.full_name,
+            phone: profile.phone,
+            aadhar: profile.aadhar_number,
+            address: profile.address
+          });
 
-          // More lenient validation - just check if basic fields exist
-          const hasName = profile.full_name && profile.full_name.trim().length > 0;
-          const hasPhone = profile.phone && profile.phone.trim().length > 0;
-          const hasAadhar = profile.aadhar_number && profile.aadhar_number.trim().length > 0;
+          // Strict validation for proper format
+          const hasValidName = profile.full_name && profile.full_name.trim().length >= 2;
+          const hasValidPhone = profile.phone && profile.phone.length === 10 && /^\d{10}$/.test(profile.phone);
+          const hasValidAadhar = profile.aadhar_number && profile.aadhar_number.length === 12 && /^\d{12}$/.test(profile.aadhar_number);
+          const hasValidAddress = profile.address && profile.address.trim().length >= 5;
 
-          console.log('Validation results:');
-          console.log('- Has name:', hasName);
-          console.log('- Has phone:', hasPhone);
-          console.log('- Has aadhar:', hasAadhar);
+          console.log('Validation results:', {
+            validName: hasValidName,
+            validPhone: hasValidPhone,
+            validAadhar: hasValidAadhar,
+            validAddress: hasValidAddress
+          });
 
-          // Accept users with basic information, even if Aadhar format isn't perfect
-          if (hasName && (hasPhone || hasAadhar)) {
+          if (hasValidName && hasValidPhone && hasValidAadhar && hasValidAddress) {
             const userProfile: UserProfile = {
               id: profile.id,
-              full_name: profile.full_name,
-              phone: profile.phone || 'N/A',
-              aadhar_number: profile.aadhar_number || 'N/A',
-              address: profile.address || 'No Address',
+              full_name: profile.full_name.trim(),
+              phone: profile.phone,
+              aadhar_number: profile.aadhar_number,
+              address: profile.address.trim(),
               email: ''
             };
             
             validUsers.push(userProfile);
-            console.log('✅ Added user to valid list:', profile.full_name);
+            console.log('✅ Added valid user:', profile.full_name);
           } else {
-            console.log('❌ Skipped user - missing required fields');
+            console.log('❌ Rejected user - invalid data format');
           }
         });
       }
 
       console.log('=== FINAL RESULTS ===');
-      console.log('Total valid users found:', validUsers.length);
-      console.log('Valid users list:', validUsers);
+      console.log('Total valid users:', validUsers.length);
+      console.log('Valid users:', validUsers);
 
       setTaxRecords(taxData || []);
       setUsers(validUsers);
 
       if (validUsers.length === 0) {
-        console.warn('⚠️ No valid users found. Check if users have completed their profiles.');
-        
-        // Try to create missing profiles for authenticated users
-        await createMissingProfiles();
+        toast({
+          title: "No Valid Users Found",
+          description: "All users must have valid 10-digit phone numbers and 12-digit Aadhar numbers to create tax records.",
+          variant: "destructive"
+        });
       }
 
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
         title: "Error fetching data",
-        description: "Failed to load tax records and user data. Check console for details.",
+        description: "Failed to load tax records and user data.",
         variant: "destructive"
       });
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const createMissingProfiles = async () => {
-    try {
-      console.log('Checking for missing profiles...');
-      
-      // Get all auth users
-      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-      
-      if (authError) {
-        console.error('Error fetching auth users:', authError);
-        return;
-      }
-
-      console.log('Auth users found:', authUsers?.users?.length || 0);
-
-      for (const authUser of authUsers?.users || []) {
-        console.log('Checking auth user:', authUser.id, authUser.email);
-        
-        // Check if profile exists
-        const { data: existingProfile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', authUser.id)
-          .single();
-
-        if (!existingProfile) {
-          console.log('Creating missing profile for user:', authUser.id);
-          
-          const { error: insertError } = await supabase
-            .from('profiles')
-            .insert({
-              id: authUser.id,
-              full_name: authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'User',
-              phone: authUser.user_metadata?.phone || '',
-              address: authUser.user_metadata?.address || '',
-              aadhar_number: authUser.user_metadata?.aadhar_number || ''
-            });
-
-          if (insertError) {
-            console.error('Error creating profile:', insertError);
-          } else {
-            console.log('✅ Created profile for user:', authUser.id);
-          }
-        }
-      }
-
-      // Refresh data after creating profiles
-      setTimeout(() => {
-        fetchData();
-      }, 1000);
-
-    } catch (error) {
-      console.error('Error creating missing profiles:', error);
     }
   };
 
@@ -364,16 +316,13 @@ const AdminTaxManagement = () => {
               Tax Records Management
             </CardTitle>
             <CardDescription>
-              Create, edit, and manage municipal tax records for all citizens. 
-              Found {users.length} registered users available for tax records.
+              Create and manage municipal tax records. 
+              Found {users.length} valid users with complete profiles.
             </CardDescription>
           </div>
           <div className="flex flex-col items-end space-y-2">
             <Button 
-              onClick={() => {
-                console.log('Manual refresh triggered...');
-                fetchData();
-              }}
+              onClick={fetchData}
               variant="outline"
               size="sm"
             >
@@ -393,6 +342,7 @@ const AdminTaxManagement = () => {
                 });
               }}
               className="bg-green-600 hover:bg-green-700"
+              disabled={users.length === 0}
             >
               <PlusCircle className="w-4 h-4 mr-2" />
               Create Tax Record
@@ -417,44 +367,35 @@ const AdminTaxManagement = () => {
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <h4 className="font-medium text-blue-800 mb-2">System Status</h4>
             <div className="text-sm text-blue-700 space-y-1">
-              <p>• Total profiles in database: {allProfiles.length}</p>
-              <p>• Available users for tax records: {users.length}</p>
+              <p>• Valid users available: {users.length}</p>
               <p>• Total tax records: {taxRecords.length}</p>
+              <p>• All users have verified phone (10 digits) and Aadhar (12 digits) numbers</p>
             </div>
           </div>
 
-          {/* Debug Info */}
-          {users.length === 0 && allProfiles.length > 0 && (
+          {users.length === 0 && (
             <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <h4 className="font-medium text-yellow-800 mb-2">User Profile Analysis</h4>
-              <div className="text-sm text-yellow-700 space-y-2">
-                <p>Found {allProfiles.length} profiles in database, but none are valid for tax records.</p>
-                <p>Profiles need at minimum: full name and either phone number or Aadhar number.</p>
-                <details className="mt-2">
-                  <summary className="cursor-pointer font-medium">View Profile Details</summary>
-                  <div className="mt-2 space-y-2">
-                    {allProfiles.map((profile, index) => (
-                      <div key={profile.id} className="bg-white p-2 rounded border">
-                        <p><strong>Profile {index + 1}:</strong></p>
-                        <p>ID: {profile.id}</p>
-                        <p>Name: {profile.full_name || 'Missing'}</p>
-                        <p>Phone: {profile.phone || 'Missing'}</p>
-                        <p>Aadhar: {profile.aadhar_number || 'Missing'}</p>
-                      </div>
-                    ))}
-                  </div>
-                </details>
+              <h4 className="font-medium text-yellow-800 mb-2">No Valid Users</h4>
+              <div className="text-sm text-yellow-700">
+                <p>No users with complete and valid profiles found. Users need:</p>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Full name (at least 2 characters)</li>
+                  <li>Valid 10-digit phone number</li>
+                  <li>Valid 12-digit Aadhar number</li>
+                  <li>Complete address (at least 5 characters)</li>
+                </ul>
+                <p className="mt-2">Ask users to sign up again with all required information.</p>
               </div>
             </div>
           )}
 
           {/* Create/Edit Form */}
-          {showCreateForm && (
+          {showCreateForm && users.length > 0 && (
             <Card className="mb-6 border-green-200">
               <CardHeader>
                 <CardTitle>{editingRecord ? 'Edit Tax Record' : 'Create New Tax Record'}</CardTitle>
                 <CardDescription>
-                  Available users: {users.length} registered users
+                  Select from {users.length} verified users
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -471,20 +412,13 @@ const AdminTaxManagement = () => {
                         required
                         className="w-full px-3 py-2 border border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
                       >
-                        <option value="">
-                          {users.length === 0 ? 'No users available' : `Select from ${users.length} users`}
-                        </option>
+                        <option value="">Select a verified user</option>
                         {users.map((userProfile) => (
                           <option key={userProfile.id} value={userProfile.id}>
-                            {userProfile.full_name} - {userProfile.phone} - {userProfile.aadhar_number}
+                            {userProfile.full_name} | {userProfile.phone} | {userProfile.aadhar_number}
                           </option>
                         ))}
                       </select>
-                      {users.length === 0 && (
-                        <p className="text-sm text-red-600 mt-1">
-                          No users available. Users need to complete registration with required information.
-                        </p>
-                      )}
                     </div>
                     
                     <div>
@@ -553,7 +487,7 @@ const AdminTaxManagement = () => {
                     </div>
                   </div>
                   <div className="flex space-x-4">
-                    <Button type="submit" disabled={isLoading || users.length === 0}>
+                    <Button type="submit" disabled={isLoading}>
                       {editingRecord ? 'Update Record' : 'Create Record'}
                     </Button>
                     <Button 
@@ -578,7 +512,12 @@ const AdminTaxManagement = () => {
               <div className="text-center py-8">
                 <Receipt className="w-12 h-12 mx-auto text-gray-400 mb-4" />
                 <p className="text-gray-500 text-lg">No tax records found</p>
-                <p className="text-gray-400">Create your first tax record using the button above</p>
+                <p className="text-gray-400">
+                  {users.length === 0 
+                    ? "No valid users available to create tax records" 
+                    : "Create your first tax record using the button above"
+                  }
+                </p>
               </div>
             ) : (
               filteredRecords.map((record) => {

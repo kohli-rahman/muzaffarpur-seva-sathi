@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,14 +34,52 @@ const AuthForm = () => {
   }, [user, authLoading, navigate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    
+    // For phone number, only allow digits and limit to 10
+    if (name === 'phone') {
+      const digitsOnly = value.replace(/\D/g, '');
+      if (digitsOnly.length <= 10) {
+        setFormData({
+          ...formData,
+          [name]: digitsOnly
+        });
+      }
+      return;
+    }
+    
+    // For Aadhar number, only allow digits and limit to 12
+    if (name === 'aadharNumber') {
+      const digitsOnly = value.replace(/\D/g, '');
+      if (digitsOnly.length <= 12) {
+        setFormData({
+          ...formData,
+          [name]: digitsOnly
+        });
+      }
+      return;
+    }
+    
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [name]: value
     });
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate full name
+    if (!formData.fullName || formData.fullName.trim().length < 2) {
+      toast({
+        title: "Invalid Name",
+        description: "Full name must be at least 2 characters long.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate password match
     if (formData.password !== formData.confirmPassword) {
       toast({
         title: "Password mismatch",
@@ -50,7 +89,7 @@ const AuthForm = () => {
       return;
     }
 
-    // Validate Aadhar number format (12 digits)
+    // Validate Aadhar number format (exactly 12 digits)
     if (formData.aadharNumber.length !== 12 || !/^\d{12}$/.test(formData.aadharNumber)) {
       toast({
         title: "Invalid Aadhar Number",
@@ -60,7 +99,7 @@ const AuthForm = () => {
       return;
     }
 
-    // Validate phone number (10 digits)
+    // Validate phone number (exactly 10 digits)
     if (formData.phone.length !== 10 || !/^\d{10}$/.test(formData.phone)) {
       toast({
         title: "Invalid Phone Number",
@@ -70,13 +109,23 @@ const AuthForm = () => {
       return;
     }
 
+    // Validate address
+    if (!formData.address || formData.address.trim().length < 5) {
+      toast({
+        title: "Invalid Address",
+        description: "Address must be at least 5 characters long.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      console.log('Signing up user with data:', {
+      console.log('Signing up user with validated data:', {
         email: formData.email,
-        full_name: formData.fullName,
+        full_name: formData.fullName.trim(),
         phone: formData.phone,
-        address: formData.address,
+        address: formData.address.trim(),
         aadhar_number: formData.aadharNumber
       });
 
@@ -85,9 +134,9 @@ const AuthForm = () => {
         password: formData.password,
         options: {
           data: {
-            full_name: formData.fullName,
+            full_name: formData.fullName.trim(),
             phone: formData.phone,
-            address: formData.address,
+            address: formData.address.trim(),
             aadhar_number: formData.aadharNumber
           }
         }
@@ -95,27 +144,22 @@ const AuthForm = () => {
 
       if (error) throw error;
 
-      // If signup is successful and user is confirmed, update the profile directly
-      if (data.user && data.user.email_confirmed_at) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: data.user.id,
-            full_name: formData.fullName,
-            phone: formData.phone,
-            address: formData.address,
-            aadhar_number: formData.aadharNumber
-          });
-
-        if (profileError) {
-          console.error('Profile update error:', profileError);
-        }
-      }
-
       toast({
         title: "Account created successfully!",
-        description: "Please check your email for verification link. Your details have been recorded.",
+        description: "Please check your email for verification link. Your profile has been created with valid data.",
       });
+
+      // Reset form
+      setFormData({
+        email: '',
+        password: '',
+        fullName: '',
+        phone: '',
+        address: '',
+        aadharNumber: '',
+        confirmPassword: ''
+      });
+
     } catch (error: any) {
       console.error('Signup error:', error);
       toast({
@@ -324,6 +368,7 @@ const AuthForm = () => {
                         value={formData.fullName}
                         onChange={handleInputChange}
                         required
+                        minLength={2}
                         className="h-11 border-gray-200 focus:border-green-500 focus:ring-green-500"
                       />
                     </div>
@@ -348,12 +393,10 @@ const AuthForm = () => {
                         value={formData.phone}
                         onChange={handleInputChange}
                         required
-                        maxLength={10}
-                        pattern="[0-9]{10}"
                         className="h-11 border-gray-200 focus:border-green-500 focus:ring-green-500"
                       />
                       <p className="text-xs text-gray-500">
-                        Enter your 10-digit mobile number (required for contact).
+                        Enter exactly 10 digits: {formData.phone.length}/10
                       </p>
                     </div>
                     <div className="space-y-2">
@@ -365,14 +408,12 @@ const AuthForm = () => {
                         value={formData.address}
                         onChange={handleInputChange}
                         required
+                        minLength={5}
                         className="h-11 border-gray-200 focus:border-green-500 focus:ring-green-500"
                       />
-                      <p className="text-xs text-gray-500">
-                        Enter your complete residential address.
-                      </p>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-700">Aadhar Number * (Required for tax records)</label>
+                      <label className="text-sm font-medium text-gray-700">Aadhar Number *</label>
                       <Input
                         type="text"
                         name="aadharNumber"
@@ -380,12 +421,10 @@ const AuthForm = () => {
                         value={formData.aadharNumber}
                         onChange={handleInputChange}
                         required
-                        maxLength={12}
-                        pattern="[0-9]{12}"
                         className="h-11 border-gray-200 focus:border-green-500 focus:ring-green-500"
                       />
                       <p className="text-xs text-gray-500">
-                        Your Aadhar number is required for creating tax records and identifying your account.
+                        Enter exactly 12 digits: {formData.aadharNumber.length}/12
                       </p>
                     </div>
                     <div className="space-y-2">
