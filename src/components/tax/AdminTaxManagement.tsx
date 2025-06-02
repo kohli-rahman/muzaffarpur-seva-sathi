@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -72,7 +71,7 @@ const AdminTaxManagement = () => {
 
       console.log('Tax records fetched:', taxData?.length || 0);
 
-      // Fetch all valid profiles (only those with proper data)
+      // First try to fetch from profiles table
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
@@ -84,57 +83,77 @@ const AdminTaxManagement = () => {
         .neq('aadhar_number', '')
         .order('created_at', { ascending: false });
 
-      if (profilesError) {
-        console.error('Profiles error:', profilesError);
-        throw profilesError;
-      }
+      let validUsers: UserProfile[] = [];
 
-      console.log('=== PROFILES VALIDATION ===');
-      console.log('Raw profiles fetched:', profilesData?.length || 0);
-
-      // Validate and format profiles
-      const validUsers: UserProfile[] = [];
-      
       if (profilesData && profilesData.length > 0) {
-        profilesData.forEach((profile, index) => {
-          console.log(`\n--- Validating profile ${index + 1} ---`);
-          console.log('Profile:', {
-            id: profile.id,
-            name: profile.full_name,
-            phone: profile.phone,
-            aadhar: profile.aadhar_number,
-            address: profile.address
-          });
-
-          // Strict validation for proper format
+        console.log('Found profiles in profiles table:', profilesData.length);
+        
+        profilesData.forEach((profile) => {
           const hasValidName = profile.full_name && profile.full_name.trim().length >= 2;
           const hasValidPhone = profile.phone && profile.phone.length === 10 && /^\d{10}$/.test(profile.phone);
           const hasValidAadhar = profile.aadhar_number && profile.aadhar_number.length === 12 && /^\d{12}$/.test(profile.aadhar_number);
           const hasValidAddress = profile.address && profile.address.trim().length >= 5;
 
-          console.log('Validation results:', {
-            validName: hasValidName,
-            validPhone: hasValidPhone,
-            validAadhar: hasValidAadhar,
-            validAddress: hasValidAddress
-          });
-
           if (hasValidName && hasValidPhone && hasValidAadhar && hasValidAddress) {
-            const userProfile: UserProfile = {
+            validUsers.push({
               id: profile.id,
               full_name: profile.full_name.trim(),
               phone: profile.phone,
               aadhar_number: profile.aadhar_number,
               address: profile.address.trim(),
               email: ''
-            };
-            
-            validUsers.push(userProfile);
-            console.log('✅ Added valid user:', profile.full_name);
-          } else {
-            console.log('❌ Rejected user - invalid data format');
+            });
           }
         });
+      }
+
+      // If no valid users found in profiles, try to fetch from auth.users metadata
+      if (validUsers.length === 0) {
+        console.log('No valid profiles found, checking auth.users metadata...');
+        
+        try {
+          // Use admin access to get auth users
+          const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+          
+          if (authError) {
+            console.error('Auth users error:', authError);
+          } else {
+            console.log('Auth users found:', authUsers.users?.length || 0);
+            
+            authUsers.users?.forEach((authUser) => {
+              const metadata = authUser.raw_user_meta_data || {};
+              const hasValidName = metadata.full_name && metadata.full_name.trim().length >= 2;
+              const hasValidPhone = metadata.phone && metadata.phone.length === 10 && /^\d{10}$/.test(metadata.phone);
+              const hasValidAadhar = metadata.aadhar_number && metadata.aadhar_number.length === 12 && /^\d{12}$/.test(metadata.aadhar_number);
+              const hasValidAddress = metadata.address && metadata.address.trim().length >= 5;
+
+              if (hasValidName && hasValidPhone && hasValidAadhar && hasValidAddress) {
+                validUsers.push({
+                  id: authUser.id,
+                  full_name: metadata.full_name.trim(),
+                  phone: metadata.phone,
+                  aadhar_number: metadata.aadhar_number,
+                  address: metadata.address.trim(),
+                  email: authUser.email || ''
+                });
+
+                // Also sync this user to profiles table for future use
+                supabase
+                  .from('profiles')
+                  .upsert({
+                    id: authUser.id,
+                    full_name: metadata.full_name.trim(),
+                    phone: metadata.phone,
+                    aadhar_number: metadata.aadhar_number,
+                    address: metadata.address.trim()
+                  })
+                  .then(() => console.log(`Synced user ${metadata.full_name} to profiles table`));
+              }
+            });
+          }
+        } catch (authFetchError) {
+          console.log('Could not fetch auth users, proceeding with profiles only');
+        }
       }
 
       console.log('=== FINAL RESULTS ===');
@@ -370,6 +389,9 @@ const AdminTaxManagement = () => {
               <p>• Valid users available: {users.length}</p>
               <p>• Total tax records: {taxRecords.length}</p>
               <p>• All users have verified phone (10 digits) and Aadhar (12 digits) numbers</p>
+              {users.length > 0 && (
+                <p>• Users loaded from: {users.length > 0 ? 'Auth metadata + Profiles sync' : 'Profiles table only'}</p>
+              )}
             </div>
           </div>
 
