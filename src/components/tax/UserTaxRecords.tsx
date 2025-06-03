@@ -20,6 +20,14 @@ interface TaxRecord {
   created_at: string;
 }
 
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString);
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
 const UserTaxRecords = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [taxRecords, setTaxRecords] = useState<TaxRecord[]>([]);
@@ -160,12 +168,12 @@ const UserTaxRecords = () => {
                   </div>
                   <div className="flex items-center">
                     <Calendar className="w-4 h-4 mr-1 text-red-600" />
-                    <span>Due: {new Date(record.due_date).toLocaleDateString()}</span>
+                    <span>Due: {formatDate(record.due_date)}</span>
                   </div>
                   {record.paid_date && (
                     <div className="flex items-center">
                       <Calendar className="w-4 h-4 mr-1 text-green-600" />
-                      <span>Paid: {new Date(record.paid_date).toLocaleDateString()}</span>
+                      <span>Paid: {formatDate(record.paid_date)}</span>
                     </div>
                   )}
                 </div>
