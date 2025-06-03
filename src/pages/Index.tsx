@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/components/auth/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import LanguageToggle from '@/components/ui/LanguageToggle';
 import ComplaintForm from '@/components/complaints/ComplaintForm';
 import ComplaintTracker from '@/components/complaints/ComplaintTracker';
 import UserTaxRecords from '@/components/tax/UserTaxRecords';
@@ -32,20 +33,21 @@ import {
   Settings
 } from 'lucide-react';
 
-const municipalServices = [
-  { name: 'Trade License', icon: FileText },
-  { name: 'Birth Certificate', icon: User },
-  { name: 'Death Certificate', icon: FileText },
-  { name: 'Property Registration', icon: Building2 },
-  { name: 'Water Connection', icon: Settings },
-  { name: 'Building Permit', icon: Building2 }
-];
-
 const Index = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const { user, signOut, isLoading } = useAuth();
+  const { t } = useLanguage();
   const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
+
+  const municipalServices = [
+    { name: t('services.tradeLicense'), icon: FileText },
+    { name: t('services.birthCertificate'), icon: User },
+    { name: t('services.deathCertificate'), icon: FileText },
+    { name: t('services.propertyRegistration'), icon: Building2 },
+    { name: t('services.waterConnection'), icon: Settings },
+    { name: t('services.buildingPermit'), icon: Building2 }
+  ];
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -100,23 +102,24 @@ const Index = () => {
                 <Building2 className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Muzaffarpur Seva Sathi</h1>
-                <p className="text-sm text-gray-600">Smart Tax Monitoring System</p>
+                <h1 className="text-2xl font-bold text-gray-900">{t('header.title')}</h1>
+                <p className="text-sm text-gray-600">{t('header.subtitle')}</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <LanguageToggle />
               <div className="flex items-center space-x-2 text-sm text-gray-600">
                 <User className="w-4 h-4" />
-                <span>Welcome, {user.email}</span>
+                <span>{t('header.welcome')}, {user.email}</span>
                 {isAdmin && (
                   <Badge className="bg-purple-100 text-purple-800 border-purple-200">
-                    Admin
+                    {t('header.admin')}
                   </Badge>
                 )}
               </div>
               <Button variant="outline" size="sm" className="hidden md:flex">
                 <Bell className="w-4 h-4 mr-2" />
-                Notifications
+                {t('header.notifications')}
               </Button>
               <Button 
                 onClick={signOut}
@@ -124,7 +127,7 @@ const Index = () => {
                 className="bg-red-50 border-red-200 text-red-600 hover:bg-red-100"
               >
                 <LogOut className="w-4 h-4 mr-2" />
-                Logout
+                {t('header.logout')}
               </Button>
             </div>
           </div>
@@ -135,15 +138,15 @@ const Index = () => {
         {/* Welcome Section */}
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold text-gray-900 mb-4">
-            Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-green-600">Digital Muzaffarpur</span>
+            {t('dashboard.welcome')} <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-green-600">{t('dashboard.digitalMuzaffarpur')}</span>
           </h2>
-          <p className="text-xl text-gray-600 mb-8">Efficient tracking and management of municipal taxes and services</p>
+          <p className="text-xl text-gray-600 mb-8">{t('dashboard.description')}</p>
           
           {/* Quick Search */}
           <div className="max-w-md mx-auto relative">
             <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
             <Input
-              placeholder="Search by Property ID or Address..."
+              placeholder={t('dashboard.search')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 h-12 text-lg border-2 border-blue-200 focus:border-blue-500"
@@ -155,7 +158,7 @@ const Index = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0 shadow-lg">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium opacity-90">Total Collected</CardTitle>
+              <CardTitle className="text-sm font-medium opacity-90">{t('stats.totalCollected')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center">
@@ -167,7 +170,7 @@ const Index = () => {
           
           <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium opacity-90">Active Properties</CardTitle>
+              <CardTitle className="text-sm font-medium opacity-90">{t('stats.activeProperties')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center">
@@ -179,7 +182,7 @@ const Index = () => {
           
           <Card className="bg-gradient-to-br from-yellow-500 to-orange-500 text-white border-0 shadow-lg">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium opacity-90">Pending Payments</CardTitle>
+              <CardTitle className="text-sm font-medium opacity-90">{t('stats.pendingPayments')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center">
@@ -191,7 +194,7 @@ const Index = () => {
           
           <Card className="bg-gradient-to-br from-purple-500 to-pink-500 text-white border-0 shadow-lg">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium opacity-90">Collection Rate</CardTitle>
+              <CardTitle className="text-sm font-medium opacity-90">{t('stats.collectionRate')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center">
@@ -206,13 +209,13 @@ const Index = () => {
         <Tabs defaultValue="dashboard" className="space-y-6">
           <TabsList className="grid grid-cols-3 h-12 bg-white shadow-md border border-blue-100">
             <TabsTrigger value="dashboard" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              {isAdmin ? 'Admin Dashboard' : 'Tax Dashboard'}
+              {isAdmin ? t('tabs.adminDashboard') : t('tabs.dashboard')}
             </TabsTrigger>
             <TabsTrigger value="services" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              Municipal Services
+              {t('tabs.services')}
             </TabsTrigger>
             <TabsTrigger value="complaints" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
-              Complaints
+              {t('tabs.complaints')}
             </TabsTrigger>
           </TabsList>
 
@@ -231,9 +234,9 @@ const Index = () => {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <Users className="w-5 h-5 mr-2 text-purple-600" />
-                  Municipal Services
+                  {t('services.title')}
                 </CardTitle>
-                <CardDescription>Access various municipal services and applications</CardDescription>
+                <CardDescription>{t('services.description')}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -244,7 +247,7 @@ const Index = () => {
                         <h3 className="font-semibold text-gray-900 mb-2">{service.name}</h3>
                         <Badge variant="outline" className="text-green-600 border-green-200">
                           <ShieldCheck className="w-3 h-3 mr-1" />
-                          Available
+                          {t('services.available')}
                         </Badge>
                       </CardContent>
                     </Card>
@@ -267,11 +270,11 @@ const Index = () => {
         <footer className="mt-16 bg-white rounded-lg shadow-lg border border-blue-100 p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Contact Information</h3>
+              <h3 className="font-semibold text-gray-900 mb-3">{t('footer.contact')}</h3>
               <div className="space-y-2 text-sm text-gray-600">
                 <div className="flex items-center">
                   <MapPin className="w-4 h-4 mr-2" />
-                  Municipal Corporation Office, Muzaffarpur
+                  {t('footer.office')}
                 </div>
                 <div className="flex items-center">
                   <Phone className="w-4 h-4 mr-2" />
@@ -280,20 +283,20 @@ const Index = () => {
               </div>
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Quick Links</h3>
+              <h3 className="font-semibold text-gray-900 mb-3">{t('footer.quickLinks')}</h3>
               <div className="space-y-2 text-sm text-gray-600">
-                <div>Property Tax Calculator</div>
-                <div>Trade License Application</div>
-                <div>Payment History</div>
-                <div>Help & Support</div>
+                <div>{t('footer.calculator')}</div>
+                <div>{t('footer.application')}</div>
+                <div>{t('footer.history')}</div>
+                <div>{t('footer.support')}</div>
               </div>
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900 mb-3">Office Hours</h3>
+              <h3 className="font-semibold text-gray-900 mb-3">{t('footer.hours')}</h3>
               <div className="space-y-2 text-sm text-gray-600">
-                <div>Monday - Friday: 10:00 AM - 6:00 PM</div>
-                <div>Saturday: 10:00 AM - 2:00 PM</div>
-                <div>Sunday: Closed</div>
+                <div>{t('footer.weekdays')}</div>
+                <div>{t('footer.saturday')}</div>
+                <div>{t('footer.sunday')}</div>
               </div>
             </div>
           </div>
