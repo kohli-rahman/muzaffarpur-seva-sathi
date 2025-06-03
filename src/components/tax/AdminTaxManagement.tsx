@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/components/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Receipt, Search, Edit, Trash2, User } from 'lucide-react';
+import { PlusCircle, Receipt, User, Edit, Trash2 } from 'lucide-react';
 
 interface TaxRecord {
   id: string;
@@ -22,21 +22,17 @@ interface TaxRecord {
   created_at: string;
 }
 
-interface UserProfile {
+interface UserData {
   id: string;
+  email: string;
   full_name: string;
-  phone: string;
-  aadhar_number: string;
-  address: string;
-  email?: string;
 }
 
 const AdminTaxManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [taxRecords, setTaxRecords] = useState<TaxRecord[]>([]);
-  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [users, setUsers] = useState<UserData[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [editingRecord, setEditingRecord] = useState<TaxRecord | null>(null);
   const [formData, setFormData] = useState({
     user_id: '',
@@ -57,101 +53,35 @@ const AdminTaxManagement = () => {
 
   const fetchData = async () => {
     try {
-      console.log('=== FETCHING ADMIN TAX DATA ===');
+      setIsLoading(true);
       
-      // Fetch all tax records
+      // Fetch tax records
       const { data: taxData, error: taxError } = await supabase
         .from('tax_records')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (taxError) {
-        console.error('Tax records error:', taxError);
-        throw taxError;
-      }
+      if (taxError) throw taxError;
 
-      console.log('Tax records fetched:', taxData?.length || 0);
+      // Fetch users from auth
+      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+      
+      if (authError) throw authError;
 
-      // Fetch users from auth.users using admin access
-      let validUsers: UserProfile[] = [];
-
-      try {
-        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-        
-        if (authError) {
-          console.error('Auth users error:', authError);
-        } else {
-          console.log('Auth users found:', authUsers.users?.length || 0);
-          
-          authUsers.users?.forEach((authUser) => {
-            const metadata = authUser.user_metadata || {};
-            
-            // Accept users with basic information (User ID is always available)
-            const hasBasicInfo = authUser.id && authUser.email;
-            
-            if (hasBasicInfo) {
-              validUsers.push({
-                id: authUser.id,
-                full_name: metadata.full_name || 'N/A',
-                phone: metadata.phone || 'N/A',
-                aadhar_number: metadata.aadhar_number || 'N/A',
-                address: metadata.address || 'N/A',
-                email: authUser.email || ''
-              });
-
-              // Sync valid user data to profiles table for future use
-              if (metadata.full_name && metadata.phone && metadata.aadhar_number && metadata.address) {
-                supabase
-                  .from('profiles')
-                  .upsert({
-                    id: authUser.id,
-                    full_name: metadata.full_name.trim(),
-                    phone: metadata.phone,
-                    aadhar_number: metadata.aadhar_number,
-                    address: metadata.address.trim()
-                  })
-                  .then(() => console.log(`Synced user ${metadata.full_name} to profiles table`));
-              }
-            }
-          });
-        }
-      } catch (authFetchError) {
-        console.log('Could not fetch auth users, trying profiles table...');
-        
-        // Fallback to profiles table
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (profilesData && profilesData.length > 0) {
-          console.log('Found profiles in profiles table:', profilesData.length);
-          
-          profilesData.forEach((profile) => {
-            validUsers.push({
-              id: profile.id,
-              full_name: profile.full_name || 'N/A',
-              phone: profile.phone || 'N/A',
-              aadhar_number: profile.aadhar_number || 'N/A',
-              address: profile.address || 'N/A',
-              email: ''
-            });
-          });
-        }
-      }
-
-      console.log('=== FINAL RESULTS ===');
-      console.log('Total users found:', validUsers.length);
-      console.log('Users:', validUsers);
+      const validUsers: UserData[] = authUsers.users.map(authUser => ({
+        id: authUser.id,
+        email: authUser.email || 'No email',
+        full_name: authUser.user_metadata?.full_name || 'Unknown User'
+      }));
 
       setTaxRecords(taxData || []);
       setUsers(validUsers);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching data:', error);
       toast({
-        title: "Error fetching data",
-        description: "Failed to load tax records and user data.",
+        title: "Error",
+        description: "Failed to load data",
         variant: "destructive"
       });
     } finally {
@@ -198,28 +128,31 @@ const AdminTaxManagement = () => {
         toast({ title: "Tax record created successfully!" });
       }
 
-      // Reset form and refresh data
-      setFormData({
-        user_id: '',
-        property_id: '',
-        tax_type: '',
-        amount: '',
-        due_date: '',
-        financial_year: new Date().getFullYear().toString()
-      });
-      setShowCreateForm(false);
-      setEditingRecord(null);
+      resetForm();
       fetchData();
 
     } catch (error: any) {
       toast({
-        title: "Failed to save tax record",
+        title: "Error",
         description: error.message,
         variant: "destructive"
       });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      user_id: '',
+      property_id: '',
+      tax_type: '',
+      amount: '',
+      due_date: '',
+      financial_year: new Date().getFullYear().toString()
+    });
+    setShowCreateForm(false);
+    setEditingRecord(null);
   };
 
   const handleEdit = (record: TaxRecord) => {
@@ -249,7 +182,7 @@ const AdminTaxManagement = () => {
       fetchData();
     } catch (error: any) {
       toast({
-        title: "Failed to delete tax record",
+        title: "Error",
         description: error.message,
         variant: "destructive"
       });
@@ -271,23 +204,17 @@ const AdminTaxManagement = () => {
       fetchData();
     } catch (error: any) {
       toast({
-        title: "Failed to update tax record",
+        title: "Error",
         description: error.message,
         variant: "destructive"
       });
     }
   };
 
-  const filteredRecords = taxRecords.filter(record => {
-    const user = users.find(u => u.id === record.user_id);
-    return (
-      record.property_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.tax_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.user_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user?.aadhar_number?.includes(searchTerm)
-    );
-  });
+  const getUserName = (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    return user?.full_name || 'Unknown User';
+  };
 
   if (isLoading) {
     return (
@@ -295,7 +222,7 @@ const AdminTaxManagement = () => {
         <CardContent className="p-6">
           <div className="flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <span className="ml-2">Loading tax management data...</span>
+            <span className="ml-2">Loading...</span>
           </div>
         </CardContent>
       </Card>
@@ -312,77 +239,31 @@ const AdminTaxManagement = () => {
               Tax Records Management
             </CardTitle>
             <CardDescription>
-              Create and manage municipal tax records using User IDs. 
-              Found {users.length} users in the system.
+              Create and manage municipal tax records for registered users
             </CardDescription>
           </div>
-          <div className="flex flex-col items-end space-y-2">
-            <Button 
-              onClick={fetchData}
-              variant="outline"
-              size="sm"
-            >
-              Refresh Data
-            </Button>
-            <Button 
-              onClick={() => {
-                setShowCreateForm(!showCreateForm);
-                setEditingRecord(null);
-                setFormData({
-                  user_id: '',
-                  property_id: '',
-                  tax_type: '',
-                  amount: '',
-                  due_date: '',
-                  financial_year: new Date().getFullYear().toString()
-                });
-              }}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <PlusCircle className="w-4 h-4 mr-2" />
-              Create Tax Record
-            </Button>
-          </div>
+          <Button 
+            onClick={() => setShowCreateForm(!showCreateForm)}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <PlusCircle className="w-4 h-4 mr-2" />
+            Create Tax Record
+          </Button>
         </CardHeader>
+        
         <CardContent>
-          {/* Search */}
-          <div className="mb-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Search by User ID, property ID, tax type, user name, or Aadhar number..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-
-          {/* Status Info */}
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h4 className="font-medium text-blue-800 mb-2">System Status</h4>
-            <div className="text-sm text-blue-700 space-y-1">
-              <p>• Users available: {users.length}</p>
-              <p>• Total tax records: {taxRecords.length}</p>
-              <p>• Tax records can be created using User ID (UUID format)</p>
-            </div>
-          </div>
-
           {/* Create/Edit Form */}
           {showCreateForm && (
             <Card className="mb-6 border-green-200">
               <CardHeader>
                 <CardTitle>{editingRecord ? 'Edit Tax Record' : 'Create New Tax Record'}</CardTitle>
-                <CardDescription>
-                  Select from {users.length} available users by User ID
-                </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Select User ({users.length} available)
+                        Select User
                       </label>
                       <select
                         name="user_id"
@@ -392,9 +273,9 @@ const AdminTaxManagement = () => {
                         className="w-full px-3 py-2 border border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="">Select a user</option>
-                        {users.map((userProfile) => (
-                          <option key={userProfile.id} value={userProfile.id}>
-                            {userProfile.full_name} | {userProfile.email} | ID: {userProfile.id.substring(0, 8)}...
+                        {users.map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.full_name} - {user.email}
                           </option>
                         ))}
                       </select>
@@ -424,7 +305,6 @@ const AdminTaxManagement = () => {
                         <option value="Property Tax">Property Tax</option>
                         <option value="Trade License">Trade License</option>
                         <option value="Advertisement Tax">Advertisement Tax</option>
-                        <option value="Mobile Tower Fee">Mobile Tower Fee</option>
                         <option value="Water Tax">Water Tax</option>
                         <option value="Sewerage Tax">Sewerage Tax</option>
                       </select>
@@ -465,18 +345,12 @@ const AdminTaxManagement = () => {
                       />
                     </div>
                   </div>
+                  
                   <div className="flex space-x-4">
                     <Button type="submit" disabled={isLoading}>
                       {editingRecord ? 'Update Record' : 'Create Record'}
                     </Button>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      onClick={() => {
-                        setShowCreateForm(false);
-                        setEditingRecord(null);
-                      }}
-                    >
+                    <Button type="button" variant="outline" onClick={resetForm}>
                       Cancel
                     </Button>
                   </div>
@@ -487,71 +361,60 @@ const AdminTaxManagement = () => {
 
           {/* Tax Records List */}
           <div className="space-y-4">
-            {filteredRecords.length === 0 ? (
+            {taxRecords.length === 0 ? (
               <div className="text-center py-8">
                 <Receipt className="w-12 h-12 mx-auto text-gray-400 mb-4" />
                 <p className="text-gray-500 text-lg">No tax records found</p>
                 <p className="text-gray-400">Create your first tax record using the button above</p>
               </div>
             ) : (
-              filteredRecords.map((record) => {
-                const userInfo = users.find(u => u.id === record.user_id);
-                return (
-                  <div key={record.id} className="border border-blue-100 rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
-                        <div className="flex items-center mb-2">
-                          <User className="w-4 h-4 mr-2 text-blue-600" />
-                          <h3 className="font-semibold text-lg">{userInfo?.full_name || 'Unknown User'}</h3>
-                          <Badge variant="outline" className="ml-2">ID: {record.user_id.substring(0, 8)}...</Badge>
-                        </div>
-                        <p className="text-gray-600">User ID: {record.user_id}</p>
-                        <p className="text-gray-600">Property ID: {record.property_id}</p>
-                        <p className="text-gray-600">Tax Type: {record.tax_type}</p>
-                        <p className="text-gray-600">Financial Year: {record.financial_year}</p>
-                        <p className="text-gray-600">Amount: ₹{record.amount.toLocaleString()}</p>
-                        <p className="text-gray-600">Due Date: {new Date(record.due_date).toLocaleDateString()}</p>
+              taxRecords.map((record) => (
+                <div key={record.id} className="border border-blue-100 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center mb-2">
+                        <User className="w-4 h-4 mr-2 text-blue-600" />
+                        <h3 className="font-semibold text-lg">{getUserName(record.user_id)}</h3>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                        <p>Property: {record.property_id}</p>
+                        <p>Type: {record.tax_type}</p>
+                        <p>Amount: ₹{record.amount.toLocaleString()}</p>
+                        <p>Due: {new Date(record.due_date).toLocaleDateString()}</p>
+                        <p>Year: {record.financial_year}</p>
                         {record.paid_date && (
-                          <p className="text-green-600">Paid Date: {new Date(record.paid_date).toLocaleDateString()}</p>
+                          <p className="text-green-600">Paid: {new Date(record.paid_date).toLocaleDateString()}</p>
                         )}
                       </div>
-                      <div className="flex flex-col items-end space-y-2">
-                        <Badge 
-                          variant={record.status === 'paid' ? 'default' : 'destructive'}
-                          className={record.status === 'paid' ? 'bg-green-100 text-green-800' : ''}
-                        >
-                          {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
-                        </Badge>
-                        <div className="flex space-x-2">
+                    </div>
+                    <div className="flex flex-col items-end space-y-2">
+                      <Badge 
+                        variant={record.status === 'paid' ? 'default' : 'destructive'}
+                        className={record.status === 'paid' ? 'bg-green-100 text-green-800' : ''}
+                      >
+                        {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                      </Badge>
+                      <div className="flex space-x-2">
+                        <Button size="sm" variant="outline" onClick={() => handleEdit(record)}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        {record.status === 'pending' && (
                           <Button
                             size="sm"
-                            variant="outline"
-                            onClick={() => handleEdit(record)}
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => markAsPaid(record.id)}
                           >
-                            <Edit className="w-4 h-4" />
+                            Mark Paid
                           </Button>
-                          {record.status === 'pending' && (
-                            <Button
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-700"
-                              onClick={() => markAsPaid(record.id)}
-                            >
-                              Mark Paid
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleDelete(record.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
+                        )}
+                        <Button size="sm" variant="destructive" onClick={() => handleDelete(record.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
                   </div>
-                );
-              })
+                </div>
+              ))
             )}
           </div>
         </CardContent>
