@@ -1,10 +1,12 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/components/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Receipt, Calendar, IndianRupee } from 'lucide-react';
+import { Receipt, Calendar, IndianRupee, CreditCard } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface TaxRecord {
   id: string;
@@ -21,7 +23,9 @@ interface TaxRecord {
 const UserTaxRecords = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [taxRecords, setTaxRecords] = useState<TaxRecord[]>([]);
+  const [payingRecord, setPayingRecord] = useState<string | null>(null);
   const { user } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (user) {
@@ -43,6 +47,40 @@ const UserTaxRecords = () => {
       console.error('Error fetching tax records:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handlePayment = async (recordId: string) => {
+    setPayingRecord(recordId);
+    try {
+      // Update the tax record status to 'paid' and set paid_date
+      const { error } = await supabase
+        .from('tax_records')
+        .update({
+          status: 'paid',
+          paid_date: new Date().toISOString()
+        })
+        .eq('id', recordId)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      // Refresh the records
+      await fetchTaxRecords();
+      
+      toast({
+        title: "Payment Successful",
+        description: "Your tax payment has been processed successfully.",
+      });
+    } catch (error) {
+      console.error('Error processing payment:', error);
+      toast({
+        title: "Payment Failed",
+        description: "There was an error processing your payment. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setPayingRecord(null);
     }
   };
 
@@ -85,12 +123,34 @@ const UserTaxRecords = () => {
                     <p className="text-gray-600">Property ID: {record.property_id}</p>
                     <p className="text-gray-600">Financial Year: {record.financial_year}</p>
                   </div>
-                  <Badge 
-                    variant={record.status === 'paid' ? 'default' : 'destructive'}
-                    className={record.status === 'paid' ? 'bg-green-100 text-green-800' : ''}
-                  >
-                    {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge 
+                      variant={record.status === 'paid' ? 'default' : 'destructive'}
+                      className={record.status === 'paid' ? 'bg-green-100 text-green-800' : ''}
+                    >
+                      {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                    </Badge>
+                    {record.status === 'pending' && (
+                      <Button
+                        onClick={() => handlePayment(record.id)}
+                        disabled={payingRecord === record.id}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        size="sm"
+                      >
+                        {payingRecord === record.id ? (
+                          <div className="flex items-center">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Processing...
+                          </div>
+                        ) : (
+                          <div className="flex items-center">
+                            <CreditCard className="w-4 h-4 mr-2" />
+                            Pay Now
+                          </div>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
