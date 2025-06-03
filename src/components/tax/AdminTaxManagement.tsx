@@ -3,11 +3,12 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/components/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Receipt, User, Edit, Trash2 } from 'lucide-react';
+import { PlusCircle, Receipt, Edit, Trash2, Calendar, IndianRupee } from 'lucide-react';
 
 interface TaxRecord {
   id: string;
@@ -22,16 +23,9 @@ interface TaxRecord {
   created_at: string;
 }
 
-interface UserData {
-  id: string;
-  email: string;
-  full_name: string;
-}
-
 const AdminTaxManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [taxRecords, setTaxRecords] = useState<TaxRecord[]>([]);
-  const [users, setUsers] = useState<UserData[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState<TaxRecord | null>(null);
   const [formData, setFormData] = useState({
@@ -47,15 +41,14 @@ const AdminTaxManagement = () => {
 
   useEffect(() => {
     if (user) {
-      fetchData();
+      fetchTaxRecords();
     }
   }, [user]);
 
-  const fetchData = async () => {
+  const fetchTaxRecords = async () => {
     try {
       setIsLoading(true);
       
-      // Fetch tax records
       const { data: taxData, error: taxError } = await supabase
         .from('tax_records')
         .select('*')
@@ -63,25 +56,13 @@ const AdminTaxManagement = () => {
 
       if (taxError) throw taxError;
 
-      // Fetch users from auth
-      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-      
-      if (authError) throw authError;
-
-      const validUsers: UserData[] = authUsers.users.map(authUser => ({
-        id: authUser.id,
-        email: authUser.email || 'No email',
-        full_name: authUser.user_metadata?.full_name || 'Unknown User'
-      }));
-
       setTaxRecords(taxData || []);
-      setUsers(validUsers);
 
     } catch (error: any) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching tax records:', error);
       toast({
         title: "Error",
-        description: "Failed to load data",
+        description: "Failed to load tax records",
         variant: "destructive"
       });
     } finally {
@@ -98,6 +79,18 @@ const AdminTaxManagement = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(formData.user_id)) {
+      toast({
+        title: "Invalid User ID",
+        description: "Please enter a valid UUID format",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -129,7 +122,7 @@ const AdminTaxManagement = () => {
       }
 
       resetForm();
-      fetchData();
+      fetchTaxRecords();
 
     } catch (error: any) {
       toast({
@@ -179,7 +172,7 @@ const AdminTaxManagement = () => {
 
       if (error) throw error;
       toast({ title: "Tax record deleted successfully!" });
-      fetchData();
+      fetchTaxRecords();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -201,7 +194,7 @@ const AdminTaxManagement = () => {
 
       if (error) throw error;
       toast({ title: "Tax record marked as paid!" });
-      fetchData();
+      fetchTaxRecords();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -209,11 +202,6 @@ const AdminTaxManagement = () => {
         variant: "destructive"
       });
     }
-  };
-
-  const getUserName = (userId: string) => {
-    const user = users.find(u => u.id === userId);
-    return user?.full_name || 'Unknown User';
   };
 
   if (isLoading) {
@@ -262,28 +250,24 @@ const AdminTaxManagement = () => {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Select User
-                      </label>
-                      <select
+                      <Label htmlFor="user_id">User ID (UUID)</Label>
+                      <Input
+                        id="user_id"
                         name="user_id"
                         value={formData.user_id}
                         onChange={handleInputChange}
+                        placeholder="e.g., 18833276-18ed-4936-8f3e-525f99f28e1c"
                         required
-                        className="w-full px-3 py-2 border border-gray-200 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="">Select a user</option>
-                        {users.map((user) => (
-                          <option key={user.id} value={user.id}>
-                            {user.full_name} - {user.email}
-                          </option>
-                        ))}
-                      </select>
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Paste the user's UUID here
+                      </p>
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Property ID</label>
+                      <Label htmlFor="property_id">Property ID</Label>
                       <Input
+                        id="property_id"
                         name="property_id"
                         value={formData.property_id}
                         onChange={handleInputChange}
@@ -293,8 +277,9 @@ const AdminTaxManagement = () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Tax Type</label>
+                      <Label htmlFor="tax_type">Tax Type</Label>
                       <select
+                        id="tax_type"
                         name="tax_type"
                         value={formData.tax_type}
                         onChange={handleInputChange}
@@ -311,8 +296,9 @@ const AdminTaxManagement = () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Amount (₹)</label>
+                      <Label htmlFor="amount">Amount (₹)</Label>
                       <Input
+                        id="amount"
                         name="amount"
                         type="number"
                         step="0.01"
@@ -324,8 +310,9 @@ const AdminTaxManagement = () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
+                      <Label htmlFor="due_date">Due Date</Label>
                       <Input
+                        id="due_date"
                         name="due_date"
                         type="date"
                         value={formData.due_date}
@@ -335,8 +322,9 @@ const AdminTaxManagement = () => {
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Financial Year</label>
+                      <Label htmlFor="financial_year">Financial Year</Label>
                       <Input
+                        id="financial_year"
                         name="financial_year"
                         value={formData.financial_year}
                         onChange={handleInputChange}
@@ -372,18 +360,24 @@ const AdminTaxManagement = () => {
                 <div key={record.id} className="border border-blue-100 rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1">
-                      <div className="flex items-center mb-2">
-                        <User className="w-4 h-4 mr-2 text-blue-600" />
-                        <h3 className="font-semibold text-lg">{getUserName(record.user_id)}</h3>
-                      </div>
+                      <h3 className="font-semibold text-lg mb-2">{record.tax_type}</h3>
                       <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                        <p>User ID: {record.user_id}</p>
                         <p>Property: {record.property_id}</p>
-                        <p>Type: {record.tax_type}</p>
-                        <p>Amount: ₹{record.amount.toLocaleString()}</p>
-                        <p>Due: {new Date(record.due_date).toLocaleDateString()}</p>
+                        <div className="flex items-center">
+                          <IndianRupee className="w-4 h-4 mr-1 text-green-600" />
+                          <span>₹{record.amount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center">
+                          <Calendar className="w-4 h-4 mr-1 text-red-600" />
+                          <span>Due: {new Date(record.due_date).toLocaleDateString()}</span>
+                        </div>
                         <p>Year: {record.financial_year}</p>
                         {record.paid_date && (
-                          <p className="text-green-600">Paid: {new Date(record.paid_date).toLocaleDateString()}</p>
+                          <div className="flex items-center">
+                            <Calendar className="w-4 h-4 mr-1 text-green-600" />
+                            <span className="text-green-600">Paid: {new Date(record.paid_date).toLocaleDateString()}</span>
+                          </div>
                         )}
                       </div>
                     </div>
