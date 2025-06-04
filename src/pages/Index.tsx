@@ -149,15 +149,7 @@ const Index = () => {
           <p className="text-xl text-gray-600 mb-8">{t('dashboard.description')}</p>
           
           {/* Quick Search */}
-          <div className="max-w-md mx-auto relative">
-            <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-            <Input
-              placeholder={t('dashboard.search')}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 h-12 text-lg border-2 border-blue-200 focus:border-blue-500"
-            />
-          </div>
+         
         </div>
 
         {/* Stats Overview */}
