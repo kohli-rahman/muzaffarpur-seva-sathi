@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/components/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Receipt, Edit, Trash2, Calendar, IndianRupee } from 'lucide-react';
+import { PlusCircle, Receipt, Edit, Trash2, Calendar, IndianRupee, Search, User } from 'lucide-react';
 
 interface TaxRecord {
   id: string;
@@ -23,11 +22,23 @@ interface TaxRecord {
   created_at: string;
 }
 
+interface UserProfile {
+  id: string;
+  full_name: string;
+  phone: string;
+  address: string;
+  aadhar_number: string;
+}
+
 const AdminTaxManagement = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [taxRecords, setTaxRecords] = useState<TaxRecord[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingRecord, setEditingRecord] = useState<TaxRecord | null>(null);
+  const [searchUserId, setSearchUserId] = useState('');
+  const [searchedUser, setSearchedUser] = useState<UserProfile | null>(null);
+  const [userTaxRecords, setUserTaxRecords] = useState<TaxRecord[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [formData, setFormData] = useState({
     user_id: '',
     property_id: '',
@@ -68,6 +79,87 @@ const AdminTaxManagement = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const searchUserById = async () => {
+    if (!searchUserId.trim()) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter a valid User ID",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(searchUserId)) {
+      toast({
+        title: "Invalid Format",
+        description: "Please enter a valid UUID format",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      // Search for user profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', searchUserId)
+        .single();
+
+      if (profileError) {
+        if (profileError.code === 'PGRST116') {
+          toast({
+            title: "User Not Found",
+            description: "No user found with this ID",
+            variant: "destructive"
+          });
+          setSearchedUser(null);
+          setUserTaxRecords([]);
+          return;
+        }
+        throw profileError;
+      }
+
+      setSearchedUser(profileData);
+
+      // Fetch user's tax records
+      const { data: userTaxData, error: userTaxError } = await supabase
+        .from('tax_records')
+        .select('*')
+        .eq('user_id', searchUserId)
+        .order('created_at', { ascending: false });
+
+      if (userTaxError) throw userTaxError;
+
+      setUserTaxRecords(userTaxData || []);
+      
+      toast({
+        title: "User Found",
+        description: `Found ${userTaxData?.length || 0} tax records for ${profileData.full_name}`,
+      });
+
+    } catch (error: any) {
+      console.error('Error searching user:', error);
+      toast({
+        title: "Error",
+        description: "Failed to search user",
+        variant: "destructive"
+      });
+      setSearchedUser(null);
+      setUserTaxRecords([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchUserId('');
+    setSearchedUser(null);
+    setUserTaxRecords([]);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -195,6 +287,10 @@ const AdminTaxManagement = () => {
       if (error) throw error;
       toast({ title: "Tax record marked as paid!" });
       fetchTaxRecords();
+      // Refresh user search results if viewing a specific user
+      if (searchedUser) {
+        searchUserById();
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -219,6 +315,135 @@ const AdminTaxManagement = () => {
 
   return (
     <div className="space-y-6">
+      {/* User Search Section */}
+      <Card className="shadow-lg border-purple-100">
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Search className="w-5 h-5 mr-2 text-purple-600" />
+            Search User by ID
+          </CardTitle>
+          <CardDescription>
+            Search for a specific user by their UUID to view their tax records
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex space-x-4 items-end">
+            <div className="flex-1">
+              <Label htmlFor="search_user_id">User ID (UUID)</Label>
+              <Input
+                id="search_user_id"
+                value={searchUserId}
+                onChange={(e) => setSearchUserId(e.target.value)}
+                placeholder="e.g., 18833276-18ed-4936-8f3e-525f99f28e1c"
+              />
+            </div>
+            <Button 
+              onClick={searchUserById}
+              disabled={isSearching}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {isSearching ? 'Searching...' : 'Search'}
+            </Button>
+            {searchedUser && (
+              <Button variant="outline" onClick={clearSearch}>
+                Clear
+              </Button>
+            )}
+          </div>
+
+          {/* Search Results */}
+          {searchedUser && (
+            <div className="mt-6 space-y-4">
+              <Card className="border-purple-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-lg">
+                    <User className="w-5 h-5 mr-2 text-purple-600" />
+                    User Details
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><strong>Name:</strong> {searchedUser.full_name}</div>
+                    <div><strong>Phone:</strong> {searchedUser.phone}</div>
+                    <div><strong>Address:</strong> {searchedUser.address}</div>
+                    <div><strong>Aadhar:</strong> {searchedUser.aadhar_number}</div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-purple-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between text-lg">
+                    <div className="flex items-center">
+                      <Receipt className="w-5 h-5 mr-2 text-purple-600" />
+                      Tax Records ({userTaxRecords.length})
+                    </div>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {userTaxRecords.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Receipt className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                      <p className="text-gray-500">No tax records found for this user</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {userTaxRecords.map((record) => (
+                        <div key={record.id} className="border border-purple-100 rounded-lg p-4 hover:shadow-md transition-shadow">
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-lg mb-2">{record.tax_type}</h3>
+                              <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                                <p>Property: {record.property_id}</p>
+                                <div className="flex items-center">
+                                  <IndianRupee className="w-4 h-4 mr-1 text-green-600" />
+                                  <span>₹{record.amount.toLocaleString()}</span>
+                                </div>
+                                <div className="flex items-center">
+                                  <Calendar className="w-4 h-4 mr-1 text-red-600" />
+                                  <span>Due: {new Date(record.due_date).toLocaleDateString()}</span>
+                                </div>
+                                <p>Year: {record.financial_year}</p>
+                                {record.paid_date && (
+                                  <div className="flex items-center">
+                                    <Calendar className="w-4 h-4 mr-1 text-green-600" />
+                                    <span className="text-green-600">Paid: {new Date(record.paid_date).toLocaleDateString()}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end space-y-2">
+                              <Badge 
+                                variant={record.status === 'paid' ? 'default' : 'destructive'}
+                                className={record.status === 'paid' ? 'bg-green-100 text-green-800' : ''}
+                              >
+                                {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                              </Badge>
+                              <div className="flex space-x-2">
+                                {record.status === 'pending' && (
+                                  <Button
+                                    size="sm"
+                                    className="bg-green-600 hover:bg-green-700"
+                                    onClick={() => markAsPaid(record.id)}
+                                  >
+                                    Mark Paid
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Original Tax Management Section */}
       <Card className="shadow-lg border-blue-100">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
