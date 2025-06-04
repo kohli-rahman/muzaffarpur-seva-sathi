@@ -78,8 +78,8 @@ const translations = {
     'header.admin': 'व्यवस्थापक',
     
     // Dashboard
-    'dashboard.welcome': 'में आपका स्वागत है',
-    'dashboard.digitalMuzaffarpur': 'डिजिटल मुजफ्फरपुर',
+    'dashboard.welcome': 'डिजिटल मुजफ्फरपुर में आपका स्वागत है',
+    'dashboard.digitalMuzaffarpur': '',
     'dashboard.description': 'नगरपालिका करों और सेवाओं की कुशल ट्रैकिंग और प्रबंधन',
     'dashboard.search': 'संपत्ति आईडी या पता से खोजें...',
     

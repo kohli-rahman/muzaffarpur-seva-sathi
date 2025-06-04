@@ -36,7 +36,7 @@ import {
 const Index = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const { user, signOut, isLoading } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
 
@@ -138,7 +138,13 @@ const Index = () => {
         {/* Welcome Section */}
         <div className="text-center mb-12">
           <h2 className="text-4xl font-bold text-gray-900 mb-4">
-            {t('dashboard.welcome')} <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-green-600">{t('dashboard.digitalMuzaffarpur')}</span>
+            {language === 'hi' ? (
+              t('dashboard.welcome')
+            ) : (
+              <>
+                {t('dashboard.welcome')} <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-green-600">{t('dashboard.digitalMuzaffarpur')}</span>
+              </>
+            )}
           </h2>
           <p className="text-xl text-gray-600 mb-8">{t('dashboard.description')}</p>
           
