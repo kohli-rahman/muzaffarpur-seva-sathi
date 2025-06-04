@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/components/auth/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { PlusCircle, Receipt, Edit, Trash2, Calendar, IndianRupee, Search, User } from 'lucide-react';
+import { PlusCircle, Receipt, Edit, Trash2, Calendar, IndianRupee, Search, User, AlertTriangle } from 'lucide-react';
 
 interface TaxRecord {
   id: string;
@@ -39,6 +39,7 @@ const AdminTaxManagement = () => {
   const [searchedUser, setSearchedUser] = useState<UserProfile | null>(null);
   const [userTaxRecords, setUserTaxRecords] = useState<TaxRecord[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     user_id: '',
     property_id: '',
@@ -102,31 +103,10 @@ const AdminTaxManagement = () => {
     }
 
     setIsSearching(true);
+    setSearchError(null);
+    
     try {
-      // Search for user profile
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', searchUserId)
-        .single();
-
-      if (profileError) {
-        if (profileError.code === 'PGRST116') {
-          toast({
-            title: "User Not Found",
-            description: "No user found with this ID",
-            variant: "destructive"
-          });
-          setSearchedUser(null);
-          setUserTaxRecords([]);
-          return;
-        }
-        throw profileError;
-      }
-
-      setSearchedUser(profileData);
-
-      // Fetch user's tax records
+      // First, fetch user's tax records to see if user exists in the system
       const { data: userTaxData, error: userTaxError } = await supabase
         .from('tax_records')
         .select('*')
@@ -136,6 +116,40 @@ const AdminTaxManagement = () => {
       if (userTaxError) throw userTaxError;
 
       setUserTaxRecords(userTaxData || []);
+
+      // Try to fetch user profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', searchUserId)
+        .single();
+
+      if (profileError && profileError.code === 'PGRST116') {
+        // User profile not found, but check if tax records exist
+        if (userTaxData && userTaxData.length > 0) {
+          setSearchedUser(null);
+          setSearchError('Profile not found, but tax records exist for this user ID');
+          toast({
+            title: "Profile Missing",
+            description: `Found ${userTaxData.length} tax records but no user profile for this ID`,
+            variant: "destructive"
+          });
+        } else {
+          setSearchedUser(null);
+          setSearchError('No user or tax records found with this ID');
+          toast({
+            title: "User Not Found",
+            description: "No user found with this ID",
+            variant: "destructive"
+          });
+        }
+        return;
+      }
+
+      if (profileError) throw profileError;
+
+      setSearchedUser(profileData);
+      setSearchError(null);
       
       toast({
         title: "User Found",
@@ -144,6 +158,7 @@ const AdminTaxManagement = () => {
 
     } catch (error: any) {
       console.error('Error searching user:', error);
+      setSearchError('Failed to search user');
       toast({
         title: "Error",
         description: "Failed to search user",
@@ -160,6 +175,7 @@ const AdminTaxManagement = () => {
     setSearchUserId('');
     setSearchedUser(null);
     setUserTaxRecords([]);
+    setSearchError(null);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -344,33 +360,67 @@ const AdminTaxManagement = () => {
             >
               {isSearching ? 'Searching...' : 'Search'}
             </Button>
-            {searchedUser && (
+            {(searchedUser || searchError || userTaxRecords.length > 0) && (
               <Button variant="outline" onClick={clearSearch}>
                 Clear
               </Button>
             )}
           </div>
 
-          {/* Search Results */}
-          {searchedUser && (
-            <div className="mt-6 space-y-4">
-              <Card className="border-purple-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center text-lg">
-                    <User className="w-5 h-5 mr-2 text-purple-600" />
-                    User Details
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div><strong>Name:</strong> {searchedUser.full_name}</div>
-                    <div><strong>Phone:</strong> {searchedUser.phone}</div>
-                    <div><strong>Address:</strong> {searchedUser.address}</div>
-                    <div><strong>Aadhar:</strong> {searchedUser.aadhar_number}</div>
+          {/* Search Error */}
+          {searchError && (
+            <div className="mt-4">
+              <Card className="border-orange-200 bg-orange-50">
+                <CardContent className="p-4">
+                  <div className="flex items-center">
+                    <AlertTriangle className="w-5 h-5 mr-2 text-orange-600" />
+                    <span className="text-orange-800">{searchError}</span>
                   </div>
                 </CardContent>
               </Card>
+            </div>
+          )}
 
+          {/* Search Results */}
+          {(searchedUser || (!searchedUser && userTaxRecords.length > 0)) && (
+            <div className="mt-6 space-y-4">
+              {/* User Profile Section */}
+              {searchedUser ? (
+                <Card className="border-purple-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-lg">
+                      <User className="w-5 h-5 mr-2 text-purple-600" />
+                      User Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div><strong>Name:</strong> {searchedUser.full_name}</div>
+                      <div><strong>Phone:</strong> {searchedUser.phone}</div>
+                      <div><strong>Address:</strong> {searchedUser.address}</div>
+                      <div><strong>Aadhar:</strong> {searchedUser.aadhar_number}</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : userTaxRecords.length > 0 && (
+                <Card className="border-orange-200 bg-orange-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-lg">
+                      <AlertTriangle className="w-5 h-5 mr-2 text-orange-600" />
+                      Missing User Profile
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-orange-800 text-sm">
+                      Tax records found for User ID: <code className="bg-orange-200 px-2 py-1 rounded">{searchUserId}</code>
+                      <br />
+                      However, no user profile exists. The user may need to complete their registration.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Tax Records Section */}
               <Card className="border-purple-200">
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between text-lg">
