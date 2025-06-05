@@ -150,12 +150,7 @@ const AdminTaxManagement = () => {
         // No profile found, but check if tax records exist
         if (userTaxData && userTaxData.length > 0) {
           setSearchedUser(null);
-          setSearchError('Profile not found, but tax records exist for this user ID');
-          toast({
-            title: "Profile Missing",
-            description: `Found ${userTaxData.length} tax records but no user profile for this ID`,
-            variant: "destructive"
-          });
+        
         } else {
           setSearchedUser(null);
           setSearchError('No user or tax records found with this ID');
