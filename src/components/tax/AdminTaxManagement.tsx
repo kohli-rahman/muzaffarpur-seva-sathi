@@ -92,7 +92,7 @@ const AdminTaxManagement = () => {
       return;
     }
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(searchUserId)) {
       toast({
         title: "Invalid Format",
@@ -104,28 +104,49 @@ const AdminTaxManagement = () => {
 
     setIsSearching(true);
     setSearchError(null);
+    setSearchedUser(null);
+    setUserTaxRecords([]);
     
     try {
-      // First, fetch user's tax records to see if user exists in the system
+      console.log('Searching for user ID:', searchUserId);
+      
+      // Fetch user profile first
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', searchUserId)
+        .maybeSingle();
+
+      console.log('Profile search result:', { profileData, profileError });
+
+      // Fetch user's tax records
       const { data: userTaxData, error: userTaxError } = await supabase
         .from('tax_records')
         .select('*')
         .eq('user_id', searchUserId)
         .order('created_at', { ascending: false });
 
+      console.log('Tax records search result:', { userTaxData, userTaxError });
+
       if (userTaxError) throw userTaxError;
 
       setUserTaxRecords(userTaxData || []);
 
-      // Try to fetch user profile
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', searchUserId)
-        .single();
+      if (profileError && profileError.code !== 'PGRST116') {
+        // Actual error occurred (not just "no rows found")
+        throw profileError;
+      }
 
-      if (profileError && profileError.code === 'PGRST116') {
-        // User profile not found, but check if tax records exist
+      if (profileData) {
+        // User profile found
+        setSearchedUser(profileData);
+        setSearchError(null);
+        toast({
+          title: "User Found",
+          description: `Found ${userTaxData?.length || 0} tax records for ${profileData.full_name}`,
+        });
+      } else {
+        // No profile found, but check if tax records exist
         if (userTaxData && userTaxData.length > 0) {
           setSearchedUser(null);
           setSearchError('Profile not found, but tax records exist for this user ID');
@@ -143,18 +164,7 @@ const AdminTaxManagement = () => {
             variant: "destructive"
           });
         }
-        return;
       }
-
-      if (profileError) throw profileError;
-
-      setSearchedUser(profileData);
-      setSearchError(null);
-      
-      toast({
-        title: "User Found",
-        description: `Found ${userTaxData?.length || 0} tax records for ${profileData.full_name}`,
-      });
 
     } catch (error: any) {
       console.error('Error searching user:', error);
@@ -304,7 +314,7 @@ const AdminTaxManagement = () => {
       toast({ title: "Tax record marked as paid!" });
       fetchTaxRecords();
       // Refresh user search results if viewing a specific user
-      if (searchedUser) {
+      if (searchedUser || userTaxRecords.length > 0) {
         searchUserById();
       }
     } catch (error: any) {
