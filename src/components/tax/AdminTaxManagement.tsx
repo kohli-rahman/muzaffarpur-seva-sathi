@@ -409,12 +409,18 @@ const AdminTaxManagement = () => {
                   </CardContent>
                 </Card>
               ) : userTaxRecords.length > 0 && (
-                
+                <Card className="border-orange-200 bg-orange-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-lg">
+                      <AlertTriangle className="w-5 h-5 mr-2 text-orange-600" />
+                      Missing User Profile
+                    </CardTitle>
+                  </CardHeader>
                   <CardContent>
                     <p className="text-orange-800 text-sm">
                       Tax records found for User ID: <code className="bg-orange-200 px-2 py-1 rounded">{searchUserId}</code>
                       <br />
-                     
+                      However, no user profile exists. The user may need to complete their registration.
                     </p>
                   </CardContent>
                 </Card>
