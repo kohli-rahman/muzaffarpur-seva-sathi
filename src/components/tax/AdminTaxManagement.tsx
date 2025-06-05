@@ -150,7 +150,10 @@ const AdminTaxManagement = () => {
         // No profile found, but check if tax records exist
         if (userTaxData && userTaxData.length > 0) {
           setSearchedUser(null);
-        
+          toast({
+            title: "Tax Records Found",
+            description: `Found ${userTaxData.length} tax records for this user ID`,
+          });
         } else {
           setSearchedUser(null);
           setSearchError('No user or tax records found with this ID');
@@ -388,10 +391,10 @@ const AdminTaxManagement = () => {
           )}
 
           {/* Search Results */}
-          {(searchedUser || (!searchedUser && userTaxRecords.length > 0)) && (
+          {(searchedUser || userTaxRecords.length > 0) && (
             <div className="mt-6 space-y-4">
-              {/* User Profile Section */}
-              {searchedUser ? (
+              {/* User Profile Section - only show if user profile exists */}
+              {searchedUser && (
                 <Card className="border-purple-200">
                   <CardHeader>
                     <CardTitle className="flex items-center text-lg">
@@ -408,41 +411,20 @@ const AdminTaxManagement = () => {
                     </div>
                   </CardContent>
                 </Card>
-              ) : userTaxRecords.length > 0 && (
-                <Card className="border-orange-200 bg-orange-50">
-                  <CardHeader>
-                    <CardTitle className="flex items-center text-lg">
-                      <AlertTriangle className="w-5 h-5 mr-2 text-orange-600" />
-                      Missing User Profile
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-orange-800 text-sm">
-                      Tax records found for User ID: <code className="bg-orange-200 px-2 py-1 rounded">{searchUserId}</code>
-                      <br />
-                      However, no user profile exists. The user may need to complete their registration.
-                    </p>
-                  </CardContent>
-                </Card>
               )}
 
               {/* Tax Records Section */}
-              <Card className="border-purple-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between text-lg">
-                    <div className="flex items-center">
-                      <Receipt className="w-5 h-5 mr-2 text-purple-600" />
-                      Tax Records ({userTaxRecords.length})
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {userTaxRecords.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Receipt className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                      <p className="text-gray-500">No tax records found for this user</p>
-                    </div>
-                  ) : (
+              {userTaxRecords.length > 0 && (
+                <Card className="border-purple-200">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between text-lg">
+                      <div className="flex items-center">
+                        <Receipt className="w-5 h-5 mr-2 text-purple-600" />
+                        Tax Records ({userTaxRecords.length})
+                      </div>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
                     <div className="space-y-4">
                       {userTaxRecords.map((record) => (
                         <div key={record.id} className="border border-purple-100 rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -491,9 +473,9 @@ const AdminTaxManagement = () => {
                         </div>
                       ))}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
         </CardContent>
